@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 export enum UserRole {
-  Student = "student",
+  Learner = "learner",
   Instructor = "instructor",
   Admin = "admin",
 }

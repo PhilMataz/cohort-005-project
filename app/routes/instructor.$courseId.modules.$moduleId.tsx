@@ -241,7 +241,7 @@ export default function InstructorModulePreview({
         <Link to={`/courses/${course.slug}/${mod.id}`}>
           <Button variant="outline" size="sm">
             <ExternalLink className="mr-1 size-3.5" />
-            Student View
+            Learner View
           </Button>
         </Link>
       </div>

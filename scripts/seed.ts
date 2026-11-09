@@ -103,13 +103,13 @@ async function seed() {
 
   // ─── Users ───
   // 1 admin, 3 instructors (one of whom owns no courses, so the empty
-  // instructor dashboard is reachable), and ~40 students.
+  // instructor dashboard is reachable), and ~40 learners.
   //
-  // Students are split in two: the five named students below, who own all the
+  // Learners are split in two: the five named learners below, who own all the
   // hand-written narrative data (comments, quiz attempts, ratings), and the
   // cohort generated further down, which supplies volume. Anything that picks a
-  // student out of a list does it by email, never by array position — see
-  // studentByEmail — so appending or inserting students never silently
+  // learner out of a list does it by email, never by array position — see
+  // learnerByEmail — so appending or inserting learners never silently
   // re-points a coupon redemption at someone else.
 
   const [admin] = db
@@ -165,41 +165,41 @@ async function seed() {
     .returning()
     .all();
 
-  const students = db
+  const learners = db
     .insert(schema.users)
     .values([
       {
         name: "Emma Wilson",
-        email: "emma.wilson@student.dev",
-        role: UserRole.Student,
+        email: "emma.wilson@learner.dev",
+        role: UserRole.Learner,
         avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=emma",
         createdAt: daysAgo(60),
       },
       {
         name: "James Park",
-        email: "james.park@student.dev",
-        role: UserRole.Student,
+        email: "james.park@learner.dev",
+        role: UserRole.Learner,
         avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=james",
         createdAt: daysAgo(55),
       },
       {
         name: "Olivia Martinez",
-        email: "olivia.martinez@student.dev",
-        role: UserRole.Student,
+        email: "olivia.martinez@learner.dev",
+        role: UserRole.Learner,
         avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=olivia",
         createdAt: daysAgo(45),
       },
       {
         name: "Liam Thompson",
         email: "liam@example.com",
-        role: UserRole.Student,
+        role: UserRole.Learner,
         avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=liam",
         createdAt: daysAgo(30),
       },
       {
         name: "Sophia Davis",
-        email: "sophia.davis@student.dev",
-        role: UserRole.Student,
+        email: "sophia.davis@learner.dev",
+        role: UserRole.Learner,
         avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=sophia",
         createdAt: daysAgo(20),
       },
@@ -211,15 +211,15 @@ async function seed() {
     .insert(schema.users)
     .values({
       name: "Bossy McBossface",
-      email: "bossy.mcbossface@student.dev",
-      role: UserRole.Student,
+      email: "bossy.mcbossface@learner.dev",
+      role: UserRole.Learner,
       avatarUrl: "https://api.dicebear.com/9.x/avataaars/svg?seed=bossy",
       createdAt: daysAgo(40),
     })
     .returning()
     .all();
 
-  // The wider student body. These carry the bulk purchase and progress history
+  // The wider learner body. These carry the bulk purchase and progress history
   // generated at the bottom of this file. Sign-up dates are spread across the
   // last twelve months, including the last few days.
   const cohortNames = [
@@ -239,9 +239,9 @@ async function seed() {
     .values(
       cohortNames.map((name, i) => ({
         name,
-        // Matches the named students above: first.last@student.dev.
-        email: `${slugify(name).replace(/-/g, ".")}@student.dev`,
-        role: UserRole.Student,
+        // Matches the named learners above: first.last@learner.dev.
+        email: `${slugify(name).replace(/-/g, ".")}@learner.dev`,
+        role: UserRole.Learner,
         avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${slugify(name)}`,
         // Spread across ~12 months, tightening towards today so the recent
         // ranges are populated. The last few sign up inside the last week.
@@ -251,22 +251,22 @@ async function seed() {
     .returning()
     .all();
 
-  // Every student, named and generated. Look students up by email rather than
+  // Every learner, named and generated. Look learners up by email rather than
   // by index — see the note in the users header.
-  const allStudents = [...students, bossy, ...cohort];
-  const studentsByEmail = new Map(allStudents.map((s) => [s.email, s]));
+  const allLearners = [...learners, bossy, ...cohort];
+  const learnersByEmail = new Map(allLearners.map((s) => [s.email, s]));
 
-  function studentByEmail(email: string) {
-    const student = studentsByEmail.get(email);
-    if (!student) throw new Error(`No seeded student with email ${email}`);
-    return student;
+  function learnerByEmail(email: string) {
+    const learner = learnersByEmail.get(email);
+    if (!learner) throw new Error(`No seeded learner with email ${email}`);
+    return learner;
   }
 
   const instructorCount = 3;
-  const studentCount = allStudents.length;
+  const learnerCount = allLearners.length;
 
   console.log(
-    `Created ${1 + instructorCount + studentCount} users (1 admin, ${instructorCount} instructors, ${studentCount} students).`
+    `Created ${1 + instructorCount + learnerCount} users (1 admin, ${instructorCount} instructors, ${learnerCount} learners).`
   );
 
   // ─── Categories ───
@@ -1791,66 +1791,66 @@ This course is still in draft while the cluster examples are rewritten against t
 
   db.insert(schema.enrollments)
     .values([
-      { userId: students[0].id, courseId: course1.id, enrolledAt: daysAgo(50) },
-      { userId: students[0].id, courseId: course2.id, enrolledAt: daysAgo(40) },
+      { userId: learners[0].id, courseId: course1.id, enrolledAt: daysAgo(50) },
+      { userId: learners[0].id, courseId: course2.id, enrolledAt: daysAgo(40) },
       {
-        userId: students[1].id,
+        userId: learners[1].id,
         courseId: course1.id,
         enrolledAt: daysAgo(45),
         completedAt: daysAgo(10),
       },
-      { userId: students[2].id, courseId: course1.id, enrolledAt: daysAgo(35) },
-      { userId: students[2].id, courseId: course2.id, enrolledAt: daysAgo(30) },
-      { userId: students[3].id, courseId: course2.id, enrolledAt: daysAgo(25) },
-      { userId: students[4].id, courseId: course1.id, enrolledAt: daysAgo(15) },
+      { userId: learners[2].id, courseId: course1.id, enrolledAt: daysAgo(35) },
+      { userId: learners[2].id, courseId: course2.id, enrolledAt: daysAgo(30) },
+      { userId: learners[3].id, courseId: course2.id, enrolledAt: daysAgo(25) },
+      { userId: learners[4].id, courseId: course1.id, enrolledAt: daysAgo(15) },
     ])
     .run();
 
   console.log(`Created ${countRows(schema.enrollments)} enrollments.`);
 
   // ─── Course Ratings ───
-  // Star ratings from enrolled students only. Not everyone rates.
+  // Star ratings from enrolled learners only. Not everyone rates.
   // Course 1 averages 4.3 (4 ratings), course 2 averages 4.5 (2 ratings).
 
   db.insert(schema.courseRatings)
     .values([
       {
-        userId: students[0].id,
+        userId: learners[0].id,
         courseId: course1.id,
         rating: 5,
         createdAt: daysAgo(20),
         updatedAt: daysAgo(20),
       },
       {
-        userId: students[1].id,
+        userId: learners[1].id,
         courseId: course1.id,
         rating: 5,
         createdAt: daysAgo(9),
         updatedAt: daysAgo(9),
       },
       {
-        userId: students[2].id,
+        userId: learners[2].id,
         courseId: course1.id,
         rating: 4,
         createdAt: daysAgo(18),
         updatedAt: daysAgo(18),
       },
       {
-        userId: students[4].id,
+        userId: learners[4].id,
         courseId: course1.id,
         rating: 3,
         createdAt: daysAgo(5),
         updatedAt: daysAgo(5),
       },
       {
-        userId: students[0].id,
+        userId: learners[0].id,
         courseId: course2.id,
         rating: 4,
         createdAt: daysAgo(12),
         updatedAt: daysAgo(12),
       },
       {
-        userId: students[3].id,
+        userId: learners[3].id,
         courseId: course2.id,
         rating: 5,
         createdAt: daysAgo(8),
@@ -1865,19 +1865,19 @@ This course is still in draft while the cluster examples are rewritten against t
   // Covers every state the Q&A feature can be in, so the instructor queue and
   // the lesson thread both have something real to render: answered threads,
   // questions still waiting (two of them stale enough to flag), a question only
-  // another student replied to (still unanswered), an edited comment, and a
+  // another learner replied to (still unanswered), an edited comment, and a
   // deleted question kept as a tombstone because it has a reply.
-  // Only enrolled students comment.
+  // Only enrolled learners comment.
 
   function comment(values: typeof schema.comments.$inferInsert) {
     const [row] = db.insert(schema.comments).values(values).returning().all();
     return row;
   }
 
-  // Answered: student asks, Sarah answers, student confirms.
+  // Answered: learner asks, Sarah answers, learner confirms.
   const c1q1 = comment({
     lessonId: course1LessonIds[2],
-    userId: students[0].id,
+    userId: learners[0].id,
     body: "I'm getting `tsc: command not found` when I run the compile step. Did I miss an install somewhere?",
     createdAt: daysAgo(30),
   });
@@ -1890,7 +1890,7 @@ This course is still in draft while the cluster examples are rewritten against t
   });
   comment({
     lessonId: course1LessonIds[2],
-    userId: students[0].id,
+    userId: learners[0].id,
     parentId: c1q1.id,
     body: "`npx` did it. Thank you!",
     createdAt: daysAgo(29),
@@ -1899,7 +1899,7 @@ This course is still in draft while the cluster examples are rewritten against t
   // Waiting, and stale enough to flag amber in the queue.
   comment({
     lessonId: course1LessonIds[7],
-    userId: students[2].id,
+    userId: learners[2].id,
     body: "Why does this fail to infer? I expected `T` to come out as `string`.\n\n```typescript\nfunction first<T>(items: T[]): T {\n  return items[0];\n}\n\nconst x = first([]);\n```",
     createdAt: daysAgo(6),
   });
@@ -1907,21 +1907,21 @@ This course is still in draft while the cluster examples are rewritten against t
   // Waiting, but posted today — should look calm in the queue.
   comment({
     lessonId: course1LessonIds[4],
-    userId: students[4].id,
+    userId: learners[4].id,
     body: "Is there a reason to prefer `interface` over `type` here, or is it purely style?",
     createdAt: daysAgo(1),
   });
 
-  // Another student replied, but no staff has — still counts as unanswered.
+  // Another learner replied, but no staff has — still counts as unanswered.
   const c1q4 = comment({
     lessonId: course1LessonIds[3],
-    userId: students[1].id,
+    userId: learners[1].id,
     body: "Does strict mode change anything about how this example behaves?",
     createdAt: daysAgo(4),
   });
   comment({
     lessonId: course1LessonIds[3],
-    userId: students[0].id,
+    userId: learners[0].id,
     parentId: c1q4.id,
     body: "I think it only affects the null checks, but I'd like a second opinion too.",
     createdAt: daysAgo(4),
@@ -1930,7 +1930,7 @@ This course is still in draft while the cluster examples are rewritten against t
   // Edited by its author — renders an "(edited)" marker.
   const c1q5 = comment({
     lessonId: course1LessonIds[0],
-    userId: students[1].id,
+    userId: learners[1].id,
     body: "Coming from JavaScript, how much of this will feel familiar? (Edited to add: I've used JSDoc types before.)",
     createdAt: daysAgo(40),
     editedAt: daysAgo(39),
@@ -1946,7 +1946,7 @@ This course is still in draft while the cluster examples are rewritten against t
   // Deleted question that keeps its reply — renders as a tombstone.
   const c1q6 = comment({
     lessonId: course1LessonIds[1],
-    userId: students[4].id,
+    userId: learners[4].id,
     body: "Posted this on the wrong lesson, sorry!",
     createdAt: daysAgo(12),
     deletedAt: daysAgo(12),
@@ -1962,7 +1962,7 @@ This course is still in draft while the cluster examples are rewritten against t
   // Course 2: waiting a long time.
   comment({
     lessonId: course2LessonIds[2],
-    userId: students[3].id,
+    userId: learners[3].id,
     body: "When would you return a 422 instead of a 400? The distinction still isn't clicking for me.",
     createdAt: daysAgo(9),
   });
@@ -1970,7 +1970,7 @@ This course is still in draft while the cluster examples are rewritten against t
   // Course 2: answered by an admin rather than the owning instructor.
   const c2q2 = comment({
     lessonId: course2LessonIds[0],
-    userId: students[2].id,
+    userId: learners[2].id,
     body: "Are the example requests in this lesson hitting a real API, or is it all mocked?",
     createdAt: daysAgo(14),
   });
@@ -2022,42 +2022,42 @@ This course is still in draft while the cluster examples are rewritten against t
       .run();
   }
 
-  // Emma (students[0]) — nearly complete in course 1 (17 of 19 lessons done)
+  // Emma (learners[0]) — nearly complete in course 1 (17 of 19 lessons done)
   for (let i = 0; i < 17; i++) {
-    markComplete(students[0].id, course1LessonIds[i], 50 - i);
+    markComplete(learners[0].id, course1LessonIds[i], 50 - i);
   }
-  markInProgress(students[0].id, course1LessonIds[17]);
+  markInProgress(learners[0].id, course1LessonIds[17]);
 
   // Emma — mid-way through course 2 (10 of 20 lessons done)
   for (let i = 0; i < 10; i++) {
-    markComplete(students[0].id, course2LessonIds[i], 40 - i);
+    markComplete(learners[0].id, course2LessonIds[i], 40 - i);
   }
-  markInProgress(students[0].id, course2LessonIds[10]);
+  markInProgress(learners[0].id, course2LessonIds[10]);
 
-  // James (students[1]) — completed all of course 1
+  // James (learners[1]) — completed all of course 1
   for (let i = 0; i < course1LessonIds.length; i++) {
-    markComplete(students[1].id, course1LessonIds[i], 45 - i);
+    markComplete(learners[1].id, course1LessonIds[i], 45 - i);
   }
 
-  // Olivia (students[2]) — just started course 1 (3 lessons done)
+  // Olivia (learners[2]) — just started course 1 (3 lessons done)
   for (let i = 0; i < 3; i++) {
-    markComplete(students[2].id, course1LessonIds[i], 30 - i);
+    markComplete(learners[2].id, course1LessonIds[i], 30 - i);
   }
-  markInProgress(students[2].id, course1LessonIds[3]);
+  markInProgress(learners[2].id, course1LessonIds[3]);
 
   // Olivia — mid-way through course 2 (8 lessons done)
   for (let i = 0; i < 8; i++) {
-    markComplete(students[2].id, course2LessonIds[i], 28 - i);
+    markComplete(learners[2].id, course2LessonIds[i], 28 - i);
   }
 
-  // Liam (students[3]) — just started course 2, abandoned (2 lessons done)
+  // Liam (learners[3]) — just started course 2, abandoned (2 lessons done)
   for (let i = 0; i < 2; i++) {
-    markComplete(students[3].id, course2LessonIds[i], 22 - i);
+    markComplete(learners[3].id, course2LessonIds[i], 22 - i);
   }
 
-  // Sophia (students[4]) — barely started course 1 (1 lesson done)
-  markComplete(students[4].id, course1LessonIds[0], 12);
-  markInProgress(students[4].id, course1LessonIds[1]);
+  // Sophia (learners[4]) — barely started course 1 (1 lesson done)
+  markComplete(learners[4].id, course1LessonIds[0], 12);
+  markInProgress(learners[4].id, course1LessonIds[1]);
 
   console.log(`Created ${countRows(schema.lessonProgress)} lesson progress records.`);
 
@@ -2068,7 +2068,7 @@ This course is still in draft while the cluster examples are rewritten against t
     userId: number,
     quizId: number,
     optionIds: { questionId: number; optionId: number; correct: boolean }[],
-    selectedCorrectIndices: number[], // which questions (0-based) the student got right
+    selectedCorrectIndices: number[], // which questions (0-based) the learner got right
     attemptDaysAgo: number
   ) {
     const totalQuestions = new Set(optionIds.map((o) => o.questionId)).size;
@@ -2116,31 +2116,31 @@ This course is still in draft while the cluster examples are rewritten against t
   }
 
   // Emma — passed quiz 1 (3/3 correct)
-  recordQuizAttempt(students[0].id, quiz1.id, quiz1OptionIds, [0, 1, 2], 35);
+  recordQuizAttempt(learners[0].id, quiz1.id, quiz1OptionIds, [0, 1, 2], 35);
 
   // Emma — passed quiz 2 (2/2 correct)
-  recordQuizAttempt(students[0].id, quiz2.id, quiz2OptionIds, [0, 1], 30);
+  recordQuizAttempt(learners[0].id, quiz2.id, quiz2OptionIds, [0, 1], 30);
 
   // Emma — passed quiz 3 (2/3 correct, just barely at 67% with 70% passing = fail, then retake)
-  recordQuizAttempt(students[0].id, quiz3.id, quiz3OptionIds, [0, 2], 28);
+  recordQuizAttempt(learners[0].id, quiz3.id, quiz3OptionIds, [0, 2], 28);
   // Retake — all correct
-  recordQuizAttempt(students[0].id, quiz3.id, quiz3OptionIds, [0, 1, 2], 27);
+  recordQuizAttempt(learners[0].id, quiz3.id, quiz3OptionIds, [0, 1, 2], 27);
 
   // James — passed quiz 1 (3/3 correct)
-  recordQuizAttempt(students[1].id, quiz1.id, quiz1OptionIds, [0, 1, 2], 40);
+  recordQuizAttempt(learners[1].id, quiz1.id, quiz1OptionIds, [0, 1, 2], 40);
 
   // James — passed quiz 2 (2/2 correct)
-  recordQuizAttempt(students[1].id, quiz2.id, quiz2OptionIds, [0, 1], 35);
+  recordQuizAttempt(learners[1].id, quiz2.id, quiz2OptionIds, [0, 1], 35);
 
   // Olivia — failed quiz 1 first attempt (1/3 correct), then passed on retry (3/3)
-  recordQuizAttempt(students[2].id, quiz1.id, quiz1OptionIds, [0], 25);
-  recordQuizAttempt(students[2].id, quiz1.id, quiz1OptionIds, [0, 1, 2], 24);
+  recordQuizAttempt(learners[2].id, quiz1.id, quiz1OptionIds, [0], 25);
+  recordQuizAttempt(learners[2].id, quiz1.id, quiz1OptionIds, [0, 1, 2], 24);
 
   // Olivia — passed quiz 3 (3/3 correct)
-  recordQuizAttempt(students[2].id, quiz3.id, quiz3OptionIds, [0, 1, 2], 20);
+  recordQuizAttempt(learners[2].id, quiz3.id, quiz3OptionIds, [0, 1, 2], 20);
 
   // Sophia — failed quiz 1 (1/3 correct, hasn't retaken yet)
-  recordQuizAttempt(students[4].id, quiz1.id, quiz1OptionIds, [1], 10);
+  recordQuizAttempt(learners[4].id, quiz1.id, quiz1OptionIds, [1], 10);
 
   console.log(
     `Created ${countRows(schema.quizAttempts)} quiz attempts and ${countRows(schema.quizAnswers)} answers.`
@@ -2212,23 +2212,23 @@ This course is still in draft while the cluster examples are rewritten against t
   }
 
   // Emma watched course 1 lesson 1 (8 min video) in two sittings.
-  addWatchSession(students[0].id, course1LessonIds[0], 0, 180, 480, 50 * 24);
-  addWatchSession(students[0].id, course1LessonIds[0], 180, 480, 480, 49 * 24);
+  addWatchSession(learners[0].id, course1LessonIds[0], 0, 180, 480, 50 * 24);
+  addWatchSession(learners[0].id, course1LessonIds[0], 180, 480, 480, 49 * 24);
 
   // James watched it straight through.
-  addWatchSession(students[1].id, course1LessonIds[0], 0, 480, 480, 45 * 24);
+  addWatchSession(learners[1].id, course1LessonIds[0], 0, 480, 480, 45 * 24);
 
   // Liam started course 2 lesson 1 and gave up six minutes in.
-  addWatchSession(students[3].id, course2LessonIds[0], 0, 300, 600, 22 * 24);
-  addWatchSession(students[3].id, course2LessonIds[0], 300, 360, 600, 21 * 24);
+  addWatchSession(learners[3].id, course2LessonIds[0], 0, 300, 600, 22 * 24);
+  addWatchSession(learners[3].id, course2LessonIds[0], 300, 360, 600, 21 * 24);
 
   // ─── Purchases ───
-  // Individual purchases for enrolled students
+  // Individual purchases for enrolled learners
 
   const [purchase1] = db
     .insert(schema.purchases)
     .values({
-      userId: students[0].id, // Emma — bought course 1 individually
+      userId: learners[0].id, // Emma — bought course 1 individually
       courseId: course1.id,
       amountPaid: 7900,
       country: "US",
@@ -2239,7 +2239,7 @@ This course is still in draft while the cluster examples are rewritten against t
 
   db.insert(schema.purchases)
     .values({
-      userId: students[0].id, // Emma — bought course 2 individually
+      userId: learners[0].id, // Emma — bought course 2 individually
       courseId: course2.id,
       amountPaid: 5999,
       country: "US",
@@ -2249,7 +2249,7 @@ This course is still in draft while the cluster examples are rewritten against t
 
   db.insert(schema.purchases)
     .values({
-      userId: students[1].id, // James — bought course 1 with PPP discount (India)
+      userId: learners[1].id, // James — bought course 1 with PPP discount (India)
       courseId: course1.id,
       amountPaid: 2500,
       country: "IN",
@@ -2259,7 +2259,7 @@ This course is still in draft while the cluster examples are rewritten against t
 
   db.insert(schema.purchases)
     .values({
-      userId: students[2].id, // Olivia — bought course 1 individually
+      userId: learners[2].id, // Olivia — bought course 1 individually
       courseId: course1.id,
       amountPaid: 7900,
       country: "US",
@@ -2269,7 +2269,7 @@ This course is still in draft while the cluster examples are rewritten against t
 
   db.insert(schema.purchases)
     .values({
-      userId: students[4].id, // Sophia — bought course 1 individually
+      userId: learners[4].id, // Sophia — bought course 1 individually
       courseId: course1.id,
       amountPaid: 7900,
       country: "US",
@@ -2334,12 +2334,12 @@ This course is still in draft while the cluster examples are rewritten against t
     .all();
 
   // Redeem 2 of the 5 coupons. Redeemers are named by email, not by position in
-  // the students array — position would silently re-point these redemptions at
-  // different people the moment a student is inserted rather than appended.
+  // the learners array — position would silently re-point these redemptions at
+  // different people the moment a learner is inserted rather than appended.
   // Both already have an enrolment for course 2 from the enrolments section.
   db.update(schema.coupons)
     .set({
-      redeemedByUserId: studentByEmail("olivia.martinez@student.dev").id,
+      redeemedByUserId: learnerByEmail("olivia.martinez@learner.dev").id,
       redeemedAt: daysAgo(30),
     })
     .where(eq(schema.coupons.id, seededCoupons[0].id))
@@ -2347,7 +2347,7 @@ This course is still in draft while the cluster examples are rewritten against t
 
   db.update(schema.coupons)
     .set({
-      redeemedByUserId: studentByEmail("liam@example.com").id,
+      redeemedByUserId: learnerByEmail("liam@example.com").id,
       redeemedAt: daysAgo(25),
     })
     .where(eq(schema.coupons.id, seededCoupons[1].id))
@@ -2359,7 +2359,7 @@ This course is still in draft while the cluster examples are rewritten against t
 
   // ─── Generated history ───
   //
-  // Everything above is hand-written narrative data: a handful of students whose
+  // Everything above is hand-written narrative data: a handful of learners whose
   // comments, quiz attempts and ratings are written one by one. Everything below
   // is the bulk history the analytics work is evaluated against — roughly twelve
   // months of purchases, enrolments, progress and watch events for the cohort.
@@ -2384,7 +2384,7 @@ This course is still in draft while the cluster examples are rewritten against t
   // ─── Drop-off cliffs ───
   //
   // Progress is not spread evenly through a course. Each course has two lessons
-  // where a large share of students stop for good, and the analytics work is
+  // where a large share of learners stop for good, and the analytics work is
   // expected to surface exactly these lessons. They are, by lesson index
   // (0-based, in course order):
   //
@@ -2404,15 +2404,15 @@ This course is still in draft while the cluster examples are rewritten against t
   // rolls: 12% never start, 38% stop at the first cliff, 22% at the second, 13%
   // finish, and the remaining 15% stop at a uniformly random lesson — so the
   // cliffs stand out against a noisy background rather than being the only
-  // stopping points. Those are per-enrolment odds, not the share of students who
-  // reach a given lesson: because students who stop at the first cliff never
+  // stopping points. Those are per-enrolment odds, not the share of learners who
+  // reach a given lesson: because learners who stop at the first cliff never
   // reach the second, the observed drop-off at each cliff is much steeper than
   // its roll.
 
   type SellableCourse = {
     course: typeof course1;
     lessonIds: number[];
-    // [bigCliffIndex, secondCliffIndex] — the lesson a stopping student last
+    // [bigCliffIndex, secondCliffIndex] — the lesson a stopping learner last
     // completed.
     cliffs: [number, number];
   };
@@ -2431,7 +2431,7 @@ This course is still in draft while the cluster examples are rewritten against t
   let generatedEnrollments = 0;
   let generatedProgressRows = 0;
 
-  // A student buys, enrols, and works through the course as far as they get.
+  // A learner buys, enrols, and works through the course as far as they get.
   // Returns false if there was nothing they could have bought on that day — a
   // course cannot be sold before it was created, and nobody buys twice.
   function buyCourse(
@@ -2489,8 +2489,8 @@ This course is still in draft while the cluster examples are rewritten against t
     return true;
   }
 
-  const signupDaysAgo = (student: (typeof cohort)[number]) =>
-    Math.round((Date.now() - Date.parse(student.createdAt)) / 86_400_000);
+  const signupDaysAgo = (learner: (typeof cohort)[number]) =>
+    Math.round((Date.now() - Date.parse(learner.createdAt)) / 86_400_000);
 
   // Purchases hang off sign-up dates, which already span the year: everyone buys
   // something within days of joining, and about two in five come back for a
@@ -2505,7 +2505,7 @@ This course is still in draft while the cluster examples are rewritten against t
     }
   }
 
-  // Launch week: a burst of sales from long-standing students inside the last
+  // Launch week: a burst of sales from long-standing learners inside the last
   // seven days, so the short date ranges are never empty and never identical to
   // the long ones.
   const launchWeekDays = [7, 6, 5, 3, 2, 1];
@@ -2515,7 +2515,7 @@ This course is still in draft while the cluster examples are rewritten against t
     buyCourse(longStanding[i % longStanding.length], launchWeekDays[i]);
   }
 
-  // Walks a student through a course as far as they got, leaving the lesson
+  // Walks a learner through a course as far as they got, leaving the lesson
   // after their last completed one in progress. Returns the number of rows
   // written.
   function generateProgress(
@@ -2620,7 +2620,7 @@ This course is still in draft while the cluster examples are rewritten against t
     purchasedDaysAgo: number,
     redeemerEmails: string[]
   ) {
-    const teamAdmin = studentByEmail(adminEmail);
+    const teamAdmin = learnerByEmail(adminEmail);
 
     const [team] = db
       .insert(schema.teams)
@@ -2665,7 +2665,7 @@ This course is still in draft while the cluster examples are rewritten against t
 
     // Redeemers named by email, for the reason given at the first team above.
     redeemerEmails.forEach((email, i) => {
-      const redeemer = studentByEmail(email);
+      const redeemer = learnerByEmail(email);
       const redeemedDaysAgo = Math.max(0, purchasedDaysAgo - (i + 1) * 2);
 
       db.update(schema.coupons)
@@ -2699,24 +2699,24 @@ This course is still in draft while the cluster examples are rewritten against t
 
   // Eight seats on TypeScript, six redeemed.
   createTeamPurchase(
-    "ava.nakamura@student.dev",
+    "ava.nakamura@learner.dev",
     course1,
     8,
     "TEAM-TS-NAKAMURA",
     120,
     [
-      "noah.blackwood@student.dev",
-      "isla.fernandes@student.dev",
-      "ethan.okafor@student.dev",
-      "mia.lindqvist@student.dev",
-      "lucas.moreau@student.dev",
-      "zara.haddad@student.dev",
+      "noah.blackwood@learner.dev",
+      "isla.fernandes@learner.dev",
+      "ethan.okafor@learner.dev",
+      "mia.lindqvist@learner.dev",
+      "lucas.moreau@learner.dev",
+      "zara.haddad@learner.dev",
     ]
   );
 
   // Four seats on Design Systems, bought during launch week, none redeemed yet.
   createTeamPurchase(
-    "marta.novak@student.dev",
+    "marta.novak@learner.dev",
     course3,
     4,
     "TEAM-DS-NOVAK",
@@ -2728,7 +2728,7 @@ This course is still in draft while the cluster examples are rewritten against t
   // One learner with a Refund waiting on an admin. The dates count back from
   // today, so the fourteen-day refund window is still open whenever you seed.
 
-  const liam = studentByEmail("liam@example.com");
+  const liam = learnerByEmail("liam@example.com");
   const [liamPurchase] = db
     .insert(schema.purchases)
     .values({
@@ -2810,7 +2810,7 @@ This course is still in draft while the cluster examples are rewritten against t
 
   console.log("\n✓ Seed complete!");
   console.log(
-    `  Users: ${countRows(schema.users)} (${countRows(schema.users, eq(schema.users.role, UserRole.Admin))} admin, ${countRows(schema.users, eq(schema.users.role, UserRole.Instructor))} instructors, ${countRows(schema.users, eq(schema.users.role, UserRole.Student))} students)`
+    `  Users: ${countRows(schema.users)} (${countRows(schema.users, eq(schema.users.role, UserRole.Admin))} admin, ${countRows(schema.users, eq(schema.users.role, UserRole.Instructor))} instructors, ${countRows(schema.users, eq(schema.users.role, UserRole.Learner))} learners)`
   );
   console.log(`  Categories: ${countRows(schema.categories)}`);
   console.log(

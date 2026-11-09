@@ -67,7 +67,7 @@ function seedCourse({ lessonCount }: { lessonCount: number }) {
     .values({
       name: "Liam Learner",
       email: "liam@example.com",
-      role: UserRole.Student,
+      role: UserRole.Learner,
     })
     .returning()
     .get();

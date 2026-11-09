@@ -65,7 +65,7 @@ export type Access = {
   pppPurchaseCountry: string | null;
   /**
    * May they read the course's content (lesson bodies, comments)?
-   * Staff always can. Students need an enrollment that isn't PPP-blocked.
+   * Staff always can. Learners need an enrollment that isn't PPP-blocked.
    */
   canViewContent: boolean;
 };
@@ -99,7 +99,7 @@ export async function getAccess(
   const isStaff = isAdmin || isOwningInstructor;
   const enrolled = isUserEnrolled(userId, courseId);
 
-  // PPP only restricts students who bought at a discount — staff are exempt.
+  // PPP only restricts learners who bought at a discount — staff are exempt.
   let ppp = {
     blocked: false,
     blockedCountry: null as string | null,
