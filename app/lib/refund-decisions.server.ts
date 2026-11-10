@@ -78,9 +78,13 @@ export type RefundDecision =
   | { outcome: "approve"; reason: string | null }
   | { outcome: "decline"; reason: string };
 
-export type RefundDecisionResult =
-  | { decided: true }
-  | { decided: false; why: "not-found" | "already-decided" };
+/** Why a Refund Request could not be decided. */
+export type NotDecided = {
+  decided: false;
+  why: "not-found" | "already-decided";
+};
+
+export type RefundDecisionResult = { decided: true } | NotDecided;
 
 /**
  * An Admin decides a Refund Request. Approving records a Refund of the amount
@@ -98,7 +102,7 @@ export function decideRefundRequest(
   now: Date = new Date()
 ): RefundDecisionResult {
   const result = db.transaction(
-    (tx): Extract<RefundDecisionResult, { decided: false }> | Email => {
+    (tx): NotDecided | Email => {
       const request = tx
         .select({
           amountPaid: purchases.amountPaid,

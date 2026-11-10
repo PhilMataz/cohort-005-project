@@ -12,7 +12,7 @@ export const isActiveEnrollment = isNull(enrollments.endedAt);
  * A course rating counts towards the average only while its author still has
  * an active Enrollment: a refunded Learner's rating stops counting (ADR 0001).
  */
-export const ratingCounts = sql`exists (
+export const ratingAuthorStillEnrolled = sql`exists (
   select 1 from ${enrollments}
   where ${enrollments.userId} = ${courseRatings.userId}
     and ${enrollments.courseId} = ${courseRatings.courseId}

@@ -21,7 +21,7 @@ import { AlertTriangle, BookOpen, Search } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
 import { getCurrentUserId } from "~/lib/session";
-import { isActiveEnrollment, ratingCounts } from "~/lib/enrollments.server";
+import { isActiveEnrollment, ratingAuthorStillEnrolled } from "~/lib/enrollments.server";
 import { formatPrice } from "~/lib/utils";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice } from "~/lib/ppp";
@@ -252,7 +252,7 @@ function getCourseRatingSummaries(
       count: sql<number>`count(*)`,
     })
     .from(courseRatings)
-    .where(and(inArray(courseRatings.courseId, courseIds), ratingCounts))
+    .where(and(inArray(courseRatings.courseId, courseIds), ratingAuthorStillEnrolled))
     .groupBy(courseRatings.courseId)
     .all();
 

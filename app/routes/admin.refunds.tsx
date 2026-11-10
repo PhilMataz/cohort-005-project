@@ -15,7 +15,7 @@ import {
   decideRefundRequest,
   listOpenRefundRequests,
   type OpenRefundRequest,
-  type RefundDecisionResult,
+  type NotDecided,
 } from "~/lib/refund-decisions.server";
 import { parseFormData } from "~/lib/validation";
 import { formatPrice } from "~/lib/utils";
@@ -48,7 +48,7 @@ const decisionSchema = z.discriminatedUnion("intent", [
 ]);
 
 const UNDECIDED_RESPONSES: Record<
-  Extract<RefundDecisionResult, { decided: false }>["why"],
+  NotDecided["why"],
   { message: string; status: number }
 > = {
   "not-found": { message: "Refund request not found.", status: 404 },

@@ -48,7 +48,7 @@ import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
 import { parseFormData } from "~/lib/validation";
 import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
 import { StarRating, StarRatingInput } from "~/components/star-rating";
-import { isUserEnrolled, ratingCounts } from "~/lib/enrollments.server";
+import { isUserEnrolled, ratingAuthorStillEnrolled } from "~/lib/enrollments.server";
 
 function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
@@ -300,7 +300,7 @@ function getCourseRatingSummary(courseId: number): CourseRatingSummary {
       count: sql<number>`count(*)`,
     })
     .from(courseRatings)
-    .where(and(eq(courseRatings.courseId, courseId), ratingCounts))
+    .where(and(eq(courseRatings.courseId, courseId), ratingAuthorStillEnrolled))
     .get();
 
   if (!result || result.count === 0 || result.average === null) {

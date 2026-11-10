@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "~/db/schema";
+import { eq } from "drizzle-orm";
 
 // The routes talk to the real schema, in a fresh in-memory database per test.
 const testDb = vi.hoisted(() => ({
@@ -114,14 +115,19 @@ function seedCourse(
 }
 
 /** A Purchase and its Enrollment, as the purchase page makes them. */
-function buyCourse(learnerId: number, courseId: number, amountPaid = 7900) {
+function buyCourse(
+  learnerId: number,
+  courseId: number,
+  amountPaid = 7900,
+  country = "US"
+) {
   const purchase = testDb.current
     .insert(purchases)
     .values({
       userId: learnerId,
       courseId,
       amountPaid,
-      country: "US",
+      country,
       createdAt: NOW.toISOString(),
     })
     .returning()
@@ -547,6 +553,53 @@ describe("After a Refund", () => {
       enrolled: true,
       lessonProgressMap: { [lessonIds[0]]: LessonProgressStatus.Completed },
     });
+  });
+});
+
+describe("Buying again after a Refund, from another country", () => {
+  it("is judged on the new Purchase, not the refunded one", async () => {
+    const { admin, instructor, category } = seedPlatform();
+    const liam = seedUser("Liam Learner", UserRole.Learner);
+    const { course } = seedCourse(instructor.id, category.id, {
+      title: "Introduction to TypeScript",
+      slug: "typescript",
+      lessonCount: 4,
+    });
+    testDb.current
+      .update(courses)
+      .set({ pppEnabled: true })
+      .where(eq(courses.id, course.id))
+      .run();
+    // First bought in India at a regional discount, then refunded.
+    buyCourse(liam.id, course.id, 3950, "IN");
+    await askForRefund(liam.id, "typescript");
+    const [open] = (await loadRefundRequests(admin.id)).refundRequests;
+    await decide(admin.id, { intent: "approve", refundRequestId: String(open.id) });
+
+    // Bought again from the US, at full price.
+    vi.setSystemTime(hoursAfterNow(24));
+    const fromTheUs = { Cookie: await cookieFor(liam.id), "CF-IPCountry": "US" };
+    const outcome = await settle(() =>
+      purchaseAction({
+        request: new Request("http://localhost/courses/typescript/purchase", {
+          method: "POST",
+          headers: {
+            ...fromTheUs,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ intent: "confirm-purchase" }),
+        }),
+        params: { slug: "typescript" },
+        context: {},
+      } as Parameters<typeof purchaseAction>[0])
+    );
+    const access = await getAccess(
+      new Request("http://localhost/", { headers: fromTheUs }),
+      course.id
+    );
+
+    expect(outcome.status).toBe(302);
+    expect(access).toMatchObject({ pppBlocked: false, canViewContent: true });
   });
 });
 

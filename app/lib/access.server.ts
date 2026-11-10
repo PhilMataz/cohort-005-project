@@ -1,5 +1,5 @@
 import { data } from "react-router";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "~/db";
 import {
   UserRole,
@@ -20,11 +20,14 @@ function getCourseById(id: number) {
   return db.select().from(courses).where(eq(courses.id, id)).get();
 }
 
-function findPurchase(userId: number, courseId: number) {
+// The latest Purchase is the one behind the active Enrollment: an earlier one
+// may have been refunded and bought again from elsewhere.
+function findLatestPurchase(userId: number, courseId: number) {
   return db
     .select()
     .from(purchases)
     .where(and(eq(purchases.userId, userId), eq(purchases.courseId, courseId)))
+    .orderBy(desc(purchases.createdAt), desc(purchases.id))
     .get();
 }
 
@@ -93,7 +96,7 @@ export async function getAccess(
   };
 
   if (enrolled && !isStaff && course) {
-    const purchase = findPurchase(userId, courseId);
+    const purchase = findLatestPurchase(userId, courseId);
     const currentCountry = await resolveCountry(request);
     ppp = checkPppAccess(
       course.price,

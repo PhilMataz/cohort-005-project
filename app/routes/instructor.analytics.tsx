@@ -39,7 +39,7 @@ import {
   users,
 } from "~/db/schema";
 import { splitRevenue, type AnalyticsRange } from "~/lib/analytics";
-import { isActiveEnrollment, ratingCounts } from "~/lib/enrollments.server";
+import { isActiveEnrollment, ratingAuthorStillEnrolled } from "~/lib/enrollments.server";
 import { getDiscountForCountry } from "~/lib/ppp";
 import {
   ANALYTICS_RANGES,
@@ -412,7 +412,7 @@ function getRatingSummary(
     .from(courseRatings)
     .innerJoin(courses, eq(courseRatings.courseId, courses.id))
     .where(
-      and(scopeOn(courseRatings.createdAt, instructorId, range), ratingCounts)
+      and(scopeOn(courseRatings.createdAt, instructorId, range), ratingAuthorStillEnrolled)
     )
     .get();
 
