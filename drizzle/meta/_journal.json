@@ -78,6 +78,13 @@
       "when": 1794245245114,
       "tag": "0010_rename-student-role-to-learner",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794326597517,
+      "tag": "0011_mute_mojo",
+      "breakpoints": true
     }
   ]
 }

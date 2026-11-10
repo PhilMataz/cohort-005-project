@@ -11,7 +11,6 @@ import {
   users,
   modules,
   lessons,
-  enrollments,
   lessonProgress,
   courseRatings,
   LessonProgressStatus,
@@ -49,6 +48,7 @@ import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
 import { parseFormData } from "~/lib/validation";
 import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
 import { StarRating, StarRatingInput } from "~/components/star-rating";
+import { isUserEnrolled, ratingCounts } from "~/lib/enrollments.server";
 
 function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
@@ -127,17 +127,6 @@ function getLessonCountForCourse(courseId: number) {
     .get();
 
   return count?.count ?? 0;
-}
-
-function isUserEnrolled(userId: number, courseId: number) {
-  const enrollment = db
-    .select()
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-  return !!enrollment;
 }
 
 function getCourseLessonIds(courseId: number): number[] {
@@ -311,7 +300,7 @@ function getCourseRatingSummary(courseId: number): CourseRatingSummary {
       count: sql<number>`count(*)`,
     })
     .from(courseRatings)
-    .where(eq(courseRatings.courseId, courseId))
+    .where(and(eq(courseRatings.courseId, courseId), ratingCounts))
     .get();
 
   if (!result || result.count === 0 || result.average === null) {

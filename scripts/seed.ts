@@ -2778,6 +2778,9 @@ This course is still in draft while the cluster examples are rewritten against t
       status: RefundStatus.Requested,
       reason: "Bought the wrong one, I meant the advanced course.",
       requestedAt: daysAgo(4),
+      // The three lessons above were all completed before he asked.
+      lessonsCompletedAtRequest: 3,
+      secondsWatchedAtRequest: 0,
     })
     .run();
 

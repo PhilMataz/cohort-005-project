@@ -21,6 +21,7 @@ import { AlertTriangle, BookOpen, Search } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
 import { getCurrentUserId } from "~/lib/session";
+import { isActiveEnrollment, ratingCounts } from "~/lib/enrollments.server";
 import { formatPrice } from "~/lib/utils";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice } from "~/lib/ppp";
@@ -127,7 +128,7 @@ function getUserEnrolledCourses(userId: number) {
     })
     .from(enrollmentsTable)
     .innerJoin(coursesTable, eq(enrollmentsTable.courseId, coursesTable.id))
-    .where(eq(enrollmentsTable.userId, userId))
+    .where(and(eq(enrollmentsTable.userId, userId), isActiveEnrollment))
     .all();
 }
 
@@ -251,7 +252,7 @@ function getCourseRatingSummaries(
       count: sql<number>`count(*)`,
     })
     .from(courseRatings)
-    .where(inArray(courseRatings.courseId, courseIds))
+    .where(and(inArray(courseRatings.courseId, courseIds), ratingCounts))
     .groupBy(courseRatings.courseId)
     .all();
 

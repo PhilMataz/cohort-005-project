@@ -10,6 +10,8 @@ import {
   REFUND_WINDOW_DAYS,
   type RefundIneligibility,
 } from "~/lib/refund-eligibility.server";
+import { sendEmail } from "~/lib/email.server";
+import { getCourseProgress } from "~/lib/progress.server";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { formatPrice } from "~/lib/utils";
 
@@ -64,10 +66,7 @@ function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
 }
 
-/**
- * The confirmation the learner gets in their inbox. There is no mail
- * transport wired up yet, so the built message goes to the server log.
- */
+/** The confirmation the learner gets in their inbox. */
 function buildRefundRequestEmail(input: {
   learnerName: string;
   learnerEmail: string;
@@ -130,15 +129,19 @@ export async function action({ params, request }: Route.ActionArgs) {
     return data({ errors: parsed.errors }, { status: 400 });
   }
 
-  db
-    .insert(refunds)
+  // The Admin weighs the request against what the Learner had done when they
+  // asked, as well as what they have done since.
+  const progress = getCourseProgress(currentUserId, course.id);
+
+  db.insert(refunds)
     .values({
       purchaseId: purchase.id,
       status: RefundStatus.Requested,
       reason: parsed.data.reason,
+      lessonsCompletedAtRequest: progress.lessonsCompleted,
+      secondsWatchedAtRequest: progress.secondsWatched,
     })
-    .returning()
-    .get();
+    .run();
 
   const email = buildRefundRequestEmail({
     learnerName: learner.name,
@@ -147,9 +150,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     amount: refundAmount,
   });
 
-  console.log(
-    `[email] to=${email.to} subject=${email.subject}\n${email.body}`
-  );
+  sendEmail(email);
 
   return redirect("/settings");
 }

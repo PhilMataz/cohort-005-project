@@ -5,7 +5,6 @@ import { db } from "~/db";
 import {
   categories,
   courses,
-  enrollments,
   lessonProgress,
   lessons,
   modules,
@@ -30,6 +29,7 @@ import {
 import { data, isRouteErrorResponse } from "react-router";
 import { formatDuration } from "~/lib/utils";
 import { z } from "zod";
+import { isUserEnrolled } from "~/lib/enrollments.server";
 
 const paramsSchema = z.object({
   slug: z.string().min(1),
@@ -109,18 +109,6 @@ function getModuleWithLessons(id: number) {
     .all();
 
   return { ...mod, lessons: moduleLessons };
-}
-
-function isUserEnrolled(userId: number, courseId: number) {
-  const existing = db
-    .select()
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-
-  return !!existing;
 }
 
 function getLessonProgressForCourse(userId: number, courseId: number) {

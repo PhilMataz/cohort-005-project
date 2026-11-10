@@ -5,12 +5,12 @@ import {
   UserRole,
   users,
   courses,
-  enrollments,
   purchases,
 } from "~/db/schema";
 import { getCurrentUserId } from "~/lib/session";
 import { resolveCountry } from "~/lib/country.server";
 import { checkPppAccess } from "~/lib/ppp";
+import { isUserEnrolled } from "~/lib/enrollments.server";
 
 function getUserById(id: number) {
   return db.select().from(users).where(eq(users.id, id)).get();
@@ -18,20 +18,6 @@ function getUserById(id: number) {
 
 function getCourseById(id: number) {
   return db.select().from(courses).where(eq(courses.id, id)).get();
-}
-
-function findEnrollment(userId: number, courseId: number) {
-  return db
-    .select()
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-}
-
-function isUserEnrolled(userId: number, courseId: number) {
-  return !!findEnrollment(userId, courseId);
 }
 
 function findPurchase(userId: number, courseId: number) {
@@ -199,4 +185,18 @@ export async function requireInstructorOrAdmin(request: Request) {
   }
 
   return { userId, user, isAdmin: user.role === UserRole.Admin };
+}
+
+/**
+ * Throws unless the user is an Admin. Returns the Admin.
+ */
+export async function requireAdmin(request: Request) {
+  const userId = await requireUserId(request);
+  const user = getUserById(userId);
+
+  if (!user || user.role !== UserRole.Admin) {
+    throw data("Only admins can do that.", { status: 403 });
+  }
+
+  return user;
 }

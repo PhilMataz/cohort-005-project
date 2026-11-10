@@ -132,6 +132,9 @@ export const enrollments = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
     completedAt: text("completed_at"),
+    // Set when a Refund ends the Enrollment. An ended Enrollment gives no
+    // access but is kept (ADR 0001); only rows with this null are active.
+    endedAt: text("ended_at"),
   },
   (table) => [index("enrollments_course_idx").on(table.courseId)]
 );
@@ -249,6 +252,12 @@ export const refunds = sqliteTable(
       .$defaultFn(() => new Date().toISOString()),
     resolvedAt: text("resolved_at"),
     resolvedByUserId: integer("resolved_by_user_id").references(() => users.id),
+    // The Admin's words. Required to decline, optional to approve.
+    decisionReason: text("decision_reason"),
+    // The Learner's Progress in the course when they asked. Null for requests
+    // made before it was recorded.
+    lessonsCompletedAtRequest: integer("lessons_completed_at_request"),
+    secondsWatchedAtRequest: real("seconds_watched_at_request"),
   },
   (table) => [index("refunds_purchase_idx").on(table.purchaseId)]
 );

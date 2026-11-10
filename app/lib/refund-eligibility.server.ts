@@ -1,16 +1,7 @@
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "~/db";
-import {
-  coupons,
-  lessonProgress,
-  lessons,
-  LessonProgressStatus,
-  modules,
-  purchases,
-  refunds,
-  RefundStatus,
-  videoWatchEvents,
-} from "~/db/schema";
+import { coupons, purchases, refunds, RefundStatus } from "~/db/schema";
+import { getCourseProgress } from "~/lib/progress.server";
 
 export const REFUND_WINDOW_DAYS = 14;
 const MAX_WATCHED_SECONDS = 2 * 60 * 60;
@@ -78,16 +69,15 @@ export function getRefundEligibility(
     return { eligible: false, reason: "outside-refund-window" };
   }
 
-  const lessonIds = getLessonIdsForCourse(courseId);
+  const progress = getCourseProgress(userId, courseId);
 
-  if (getSecondsWatched(userId, lessonIds) >= MAX_WATCHED_SECONDS) {
+  if (progress.secondsWatched >= MAX_WATCHED_SECONDS) {
     return { eligible: false, reason: "watched-too-much" };
   }
 
   if (
-    lessonIds.length > 0 &&
-    getCompletedLessonCount(userId, lessonIds) / lessonIds.length >=
-      MAX_COMPLETED_SHARE
+    progress.lessonCount > 0 &&
+    progress.lessonsCompleted / progress.lessonCount >= MAX_COMPLETED_SHARE
   ) {
     return { eligible: false, reason: "completed-too-much" };
   }
@@ -159,49 +149,4 @@ function lastDayOfRefundWindow(purchasedAtIso: string): string {
   const deadline = new Date(purchasedAtIso);
   deadline.setDate(deadline.getDate() + REFUND_WINDOW_DAYS);
   return calendarDay(deadline);
-}
-
-function getLessonIdsForCourse(courseId: number): number[] {
-  return db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .innerJoin(modules, eq(lessons.moduleId, modules.id))
-    .where(eq(modules.courseId, courseId))
-    .all()
-    .map((row) => row.id);
-}
-
-function getCompletedLessonCount(userId: number, lessonIds: number[]) {
-  const result = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        inArray(lessonProgress.lessonId, lessonIds)
-      )
-    )
-    .get();
-  return result?.count ?? 0;
-}
-
-function getSecondsWatched(userId: number, lessonIds: number[]) {
-  if (lessonIds.length === 0) return 0;
-
-  const furthestPerLesson = db
-    .select({
-      furthest: sql<number>`max(${videoWatchEvents.positionSeconds})`,
-    })
-    .from(videoWatchEvents)
-    .where(
-      and(
-        eq(videoWatchEvents.userId, userId),
-        inArray(videoWatchEvents.lessonId, lessonIds)
-      )
-    )
-    .groupBy(videoWatchEvents.lessonId)
-    .all();
-
-  return furthestPerLesson.reduce((total, row) => total + row.furthest, 0);
 }

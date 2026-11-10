@@ -33,10 +33,13 @@ import {
   modules,
   purchases,
   quizAttempts,
+  refunds,
+  RefundStatus,
   quizzes,
   users,
 } from "~/db/schema";
 import { splitRevenue, type AnalyticsRange } from "~/lib/analytics";
+import { isActiveEnrollment, ratingCounts } from "~/lib/enrollments.server";
 import { getDiscountForCountry } from "~/lib/ppp";
 import {
   ANALYTICS_RANGES,
@@ -198,6 +201,14 @@ type CourseCountryRevenue = {
   rows: CountryRevenueRow[];
 };
 
+// Revenue is counted after refunds: what a Purchase brought in, less any
+// Refund approved on it (always the whole amount paid).
+const paidAfterRefunds = sql<number>`(${purchases.amountPaid} - coalesce((
+  select sum(${refunds.amountRefunded}) from ${refunds}
+  where ${refunds.purchaseId} = ${purchases.id}
+    and ${refunds.status} = ${RefundStatus.Approved}
+), 0))`;
+
 function scopeOn(
   dateColumn: SQLiteColumn,
   instructorId: number | null,
@@ -241,7 +252,9 @@ function getStudentRevenue(
     .from(enrollments)
     .innerJoin(courses, eq(enrollments.courseId, courses.id))
     .innerJoin(users, eq(users.id, enrollments.userId))
-    .where(scopeOn(enrollments.enrolledAt, instructorId, range))
+    .where(
+      and(scopeOn(enrollments.enrolledAt, instructorId, range), isActiveEnrollment)
+    )
     .orderBy(users.name)
     .all();
 
@@ -256,7 +269,7 @@ function getStudentRevenue(
     .where(eq(coupons.purchaseId, purchases.id));
 
   const direct = db
-    .select({ userId: purchases.userId, paid: sum(purchases.amountPaid) })
+    .select({ userId: purchases.userId, paid: sum(paidAfterRefunds) })
     .from(purchases)
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .where(
@@ -280,7 +293,7 @@ function getStudentRevenue(
       userId: coupons.redeemedByUserId,
       // Divided rather than rounded per row: the shares are summed first and
       // rounded once, so five seats out of 3333 cents still add up.
-      paid: sql<number>`sum(${purchases.amountPaid} * 1.0 / ${seatCounts.seats})`,
+      paid: sql<number>`sum(${paidAfterRefunds} * 1.0 / ${seatCounts.seats})`,
     })
     .from(coupons)
     .innerJoin(purchases, eq(coupons.purchaseId, purchases.id))
@@ -318,7 +331,7 @@ function getTopBuyers(
       userId: users.id,
       name: users.name,
       email: users.email,
-      spend: sum(purchases.amountPaid),
+      spend: sum(paidAfterRefunds),
       purchaseCount: count(purchases.id),
     })
     .from(purchases)
@@ -326,7 +339,7 @@ function getTopBuyers(
     .innerJoin(users, eq(users.id, purchases.userId))
     .where(purchaseScope(instructorId, range))
     .groupBy(users.id)
-    .orderBy(desc(sum(purchases.amountPaid)))
+    .orderBy(desc(sum(paidAfterRefunds)))
     .limit(TOP_BUYER_LIMIT)
     .all();
 
@@ -364,7 +377,13 @@ function getTopBuyers(
       .selectDistinct({ userId: enrollments.userId })
       .from(enrollments)
       .innerJoin(courses, eq(enrollments.courseId, courses.id))
-      .where(and(inArray(enrollments.userId, buyerIds), ownedBy(instructorId)))
+      .where(
+        and(
+          inArray(enrollments.userId, buyerIds),
+          ownedBy(instructorId),
+          isActiveEnrollment
+        )
+      )
       .all()
       .map((row) => row.userId)
   );
@@ -392,7 +411,9 @@ function getRatingSummary(
     })
     .from(courseRatings)
     .innerJoin(courses, eq(courseRatings.courseId, courses.id))
-    .where(scopeOn(courseRatings.createdAt, instructorId, range))
+    .where(
+      and(scopeOn(courseRatings.createdAt, instructorId, range), ratingCounts)
+    )
     .get();
 
   if (!row || row.count === 0 || row.average === null) {
@@ -440,7 +461,7 @@ function getRevenueOverTime(
   })`;
 
   const rows = db
-    .select({ bucket: bucketExpr, gross: sum(purchases.amountPaid) })
+    .select({ bucket: bucketExpr, gross: sum(paidAfterRefunds) })
     .from(purchases)
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .where(purchaseScope(instructorId, range))
@@ -508,7 +529,7 @@ function getCourseProgressSummary(courseId: number): CourseProgressSummary {
         inArray(lessonProgress.lessonId, courseLessonIds(courseId))
       )
     )
-    .where(eq(enrollments.courseId, courseId))
+    .where(and(eq(enrollments.courseId, courseId), isActiveEnrollment))
     .groupBy(enrollments.userId)
     .all();
 
@@ -546,7 +567,7 @@ function getCourseDropOff(courseId: number): CourseFunnel {
   const enrolled = db
     .select({ enrolledCount: countDistinct(enrollments.userId) })
     .from(enrollments)
-    .where(eq(enrollments.courseId, courseId))
+    .where(and(eq(enrollments.courseId, courseId), isActiveEnrollment))
     .get();
 
   const enrolledCount = enrolled?.enrolledCount ?? 0;
@@ -583,7 +604,8 @@ function getCourseDropOff(courseId: number): CourseFunnel {
       enrollments,
       and(
         eq(enrollments.userId, lessonProgress.userId),
-        eq(enrollments.courseId, courseId)
+        eq(enrollments.courseId, courseId),
+        isActiveEnrollment
       )
     )
     .where(
@@ -736,7 +758,7 @@ function getCourseRevenueByCountry(
   const rows = db
     .select({
       country: purchases.country,
-      gross: sum(purchases.amountPaid),
+      gross: sum(paidAfterRefunds),
       purchaseCount: count(purchases.id),
     })
     .from(purchases)
@@ -888,7 +910,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
   // Gross revenue, the platform's fee and the instructor's net for the range.
   const summaryRow = db
     .select({
-      gross: sum(purchases.amountPaid),
+      gross: sum(paidAfterRefunds),
       purchaseCount: count(purchases.id),
     })
     .from(purchases)
@@ -908,7 +930,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     .select({
       courseId: courses.id,
       title: courses.title,
-      gross: sum(purchases.amountPaid),
+      gross: sum(paidAfterRefunds),
       purchaseCount: count(purchases.id),
     })
     .from(purchases)

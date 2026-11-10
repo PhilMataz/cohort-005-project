@@ -85,6 +85,9 @@ export async function loader({ request }: Route.LoaderArgs) {
       reason: refunds.reason,
       status: refunds.status,
       requestedAt: refunds.requestedAt,
+      amountRefunded: refunds.amountRefunded,
+      decisionReason: refunds.decisionReason,
+      decidedAt: refunds.resolvedAt,
     })
     .from(refunds)
     .innerJoin(purchases, eq(refunds.purchaseId, purchases.id))
@@ -262,6 +265,22 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
                   {new Date(refundRequest.requestedAt).toLocaleDateString()}
                 </p>
                 <p className="mt-2 text-sm">{refundRequest.reason}</p>
+                {refundRequest.amountRefunded !== null && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {formatPrice(refundRequest.amountRefunded)} refunded
+                    {refundRequest.decidedAt &&
+                      ` on ${new Date(refundRequest.decidedAt).toLocaleDateString()}`}
+                    . Your access to the course has ended; your progress is
+                    kept.
+                  </p>
+                )}
+                {refundRequest.status === RefundStatus.Declined &&
+                  refundRequest.decisionReason && (
+                    <div className="mt-2 rounded-md bg-muted p-2 text-sm">
+                      <p className="font-medium">Why we declined</p>
+                      <p className="mt-1">{refundRequest.decisionReason}</p>
+                    </div>
+                  )}
               </div>
             ))}
           </CardContent>
