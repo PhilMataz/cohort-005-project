@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "~/db/schema";
+import { eq } from "drizzle-orm";
 
 // The route talks to the real schema, in a fresh in-memory database per test.
 const testDb = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ vi.mock("~/db", () => ({
 
 import { action } from "./courses.$slug.refund";
 import { setCurrentUserId } from "~/lib/session";
+import { getRefundEligibility } from "~/lib/refund-eligibility.server";
 
 const {
   users,
@@ -111,19 +113,37 @@ function seedCourse({ lessonCount }: { lessonCount: number }) {
 function buyCourse(
   learnerId: number,
   courseId: number,
-  { purchasedDaysAgo = 0 } = {}
+  { purchasedDaysAgo = 0, amountPaid = 7900, country = "US" } = {}
 ) {
   return testDb.current
     .insert(purchases)
     .values({
       userId: learnerId,
       courseId,
-      amountPaid: 7900,
-      country: "US",
+      amountPaid,
+      country,
       createdAt: daysAgo(purchasedDaysAgo),
     })
     .returning()
     .get();
+}
+
+function changeCoursePrice(courseId: number, price: number) {
+  testDb.current
+    .update(courses)
+    .set({ price })
+    .where(eq(courses.id, courseId))
+    .run();
+}
+
+/** The body of the confirmation email, which goes to the server log. */
+function confirmationEmail() {
+  const logged = vi
+    .mocked(console.log)
+    .mock.calls.map(([line]) => String(line))
+    .filter((line) => line.startsWith("[email]"));
+  expect(logged).toHaveLength(1);
+  return logged[0];
 }
 
 function completeLessons(learnerId: number, lessonIds: number[]) {
@@ -209,22 +229,23 @@ async function requestRefund(learnerId: number) {
   }
 }
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+  vi.spyOn(console, "log").mockImplementation(() => {});
+
+  const sqlite = new Database(":memory:");
+  sqlite.pragma("foreign_keys = ON");
+  testDb.current = drizzle(sqlite, { schema });
+  migrate(testDb.current, { migrationsFolder: "drizzle" });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
 describe("Refund Request, sent to the server", () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(NOW);
-    vi.spyOn(console, "log").mockImplementation(() => {});
-
-    const sqlite = new Database(":memory:");
-    sqlite.pragma("foreign_keys = ON");
-    testDb.current = drizzle(sqlite, { schema });
-    migrate(testDb.current, { migrationsFolder: "drizzle" });
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
 
   it("is accepted for an eligible Purchase", async () => {
     const { learner, course } = seedCourse({ lessonCount: 4 });
@@ -339,5 +360,69 @@ describe("Refund Request, sent to the server", () => {
       status: 403,
       message: "You have not bought this course.",
     });
+  });
+
+  describe("after the course price changed", () => {
+    it("refunds the amount paid when the price went up", async () => {
+      const { learner, course } = seedCourse({ lessonCount: 4 });
+      buyCourse(learner.id, course.id, { amountPaid: 7900, country: "US" });
+      changeCoursePrice(course.id, 9900);
+
+      const response = await requestRefund(learner.id);
+
+      expect(response.status).toBe(302);
+      expect(confirmationEmail()).toContain(
+        "The Reversal is for $79.00, the amount you paid."
+      );
+    });
+
+    it("refunds the amount paid when the price went down", async () => {
+      const { learner, course } = seedCourse({ lessonCount: 4 });
+      buyCourse(learner.id, course.id, { amountPaid: 7900, country: "US" });
+      changeCoursePrice(course.id, 4900);
+
+      const response = await requestRefund(learner.id);
+
+      expect(response.status).toBe(302);
+      expect(confirmationEmail()).toContain(
+        "The Reversal is for $79.00, the amount you paid."
+      );
+    });
+
+    it("refunds the amount paid at a regional discount", async () => {
+      const { learner, course } = seedCourse({ lessonCount: 4 });
+      // India gets 50% off: $79.00 → $39.50.
+      buyCourse(learner.id, course.id, { amountPaid: 3950, country: "IN" });
+      changeCoursePrice(course.id, 9900);
+
+      const response = await requestRefund(learner.id);
+
+      expect(response.status).toBe(302);
+      expect(confirmationEmail()).toContain(
+        "The Reversal is for $39.50, the amount you paid."
+      );
+    });
+  });
+});
+
+describe("Refund Eligibility, as shown on the course page", () => {
+  it("offers the amount paid after the price changed", () => {
+    const { learner, course } = seedCourse({ lessonCount: 4 });
+    buyCourse(learner.id, course.id, { amountPaid: 7900, country: "US" });
+    changeCoursePrice(course.id, 9900);
+
+    const eligibility = getRefundEligibility(learner.id, course.id);
+
+    expect(eligibility).toMatchObject({ eligible: true, refundAmount: 7900 });
+  });
+
+  it("offers the amount paid at a regional discount after the price changed", () => {
+    const { learner, course } = seedCourse({ lessonCount: 4 });
+    buyCourse(learner.id, course.id, { amountPaid: 3950, country: "IN" });
+    changeCoursePrice(course.id, 9900);
+
+    const eligibility = getRefundEligibility(learner.id, course.id);
+
+    expect(eligibility).toMatchObject({ eligible: true, refundAmount: 3950 });
   });
 });

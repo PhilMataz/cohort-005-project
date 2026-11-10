@@ -11,7 +11,6 @@ import {
   type RefundIneligibility,
 } from "~/lib/refund-eligibility.server";
 import { parseFormData, parseParams } from "~/lib/validation";
-import { getDiscountForCountry } from "~/lib/ppp";
 import { formatPrice } from "~/lib/utils";
 
 const INELIGIBLE_RESPONSES: Record<
@@ -114,12 +113,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data(message, { status });
   }
 
-  const { purchase } = eligibility;
-
-  // A purchase made at a purchasing-power price is given back at that price,
-  // not at the list price of the course.
-  const pppDiscount = getDiscountForCountry(purchase.country);
-  const refundableAmount = pppDiscount > 0 ? purchase.amountPaid : course.price;
+  const { purchase, refundAmount } = eligibility;
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, refundActionSchema);
@@ -142,7 +136,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     learnerName: learner.name,
     learnerEmail: learner.email,
     courseTitle: course.title,
-    amount: refundableAmount,
+    amount: refundAmount,
   });
 
   console.log(

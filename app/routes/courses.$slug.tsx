@@ -45,11 +45,7 @@ import { data, isRouteErrorResponse } from "react-router";
 import { formatDuration, formatPrice } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
 import { resolveCountry } from "~/lib/country.server";
-import {
-  calculatePppPrice,
-  getCountryTierInfo,
-  getDiscountForCountry,
-} from "~/lib/ppp";
+import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
 import { parseFormData } from "~/lib/validation";
 import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
 import { StarRating, StarRatingInput } from "~/components/star-rating";
@@ -367,21 +363,12 @@ function rateCourse(userId: number, courseId: number, rating: number) {
  * What the learner is offered if they want their money back, or null if this
  * purchase cannot be cancelled.
  */
-function getCancellationOffer(
-  userId: number,
-  course: { id: number; price: number }
-) {
-  const eligibility = getRefundEligibility(userId, course.id);
+function getCancellationOffer(userId: number, courseId: number) {
+  const eligibility = getRefundEligibility(userId, courseId);
   if (!eligibility.eligible) return null;
 
-  const { purchase, lastDayInWindow } = eligibility;
-
-  // A purchasing-power price is given back at the price that was paid, not at
-  // the list price of the course.
-  const pppDiscount = getDiscountForCountry(purchase.country);
-  const amount = pppDiscount > 0 ? purchase.amountPaid : course.price;
-
-  return { amount, lastDayInWindow };
+  const { refundAmount, lastDayInWindow } = eligibility;
+  return { amount: refundAmount, lastDayInWindow };
 }
 
 const ratingSchema = z.object({
@@ -422,10 +409,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     enrolled = isUserEnrolled(currentUserId, course.id);
 
     if (enrolled) {
-      cancellation = getCancellationOffer(currentUserId, {
-        id: course.id,
-        price: courseWithDetails.price,
-      });
+      cancellation = getCancellationOffer(currentUserId, course.id);
 
       progress = calculateProgress(currentUserId, course.id, false);
 

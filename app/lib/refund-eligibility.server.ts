@@ -28,7 +28,13 @@ export type RefundIneligibility =
   | "completed-too-much";
 
 export type RefundEligibility =
-  | { eligible: true; purchase: Purchase; lastDayInWindow: string }
+  | {
+      eligible: true;
+      purchase: Purchase;
+      lastDayInWindow: string;
+      /** The Refund, in cents: always the amount paid for the Purchase. */
+      refundAmount: number;
+    }
   | { eligible: false; reason: RefundIneligibility };
 
 /**
@@ -72,7 +78,12 @@ export function getRefundEligibility(
     return { eligible: false, reason: "completed-too-much" };
   }
 
-  return { eligible: true, purchase, lastDayInWindow };
+  return {
+    eligible: true,
+    purchase,
+    lastDayInWindow,
+    refundAmount: purchase.amountPaid,
+  };
 }
 
 function getLatestPurchase(userId: number, courseId: number) {
