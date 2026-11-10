@@ -22,6 +22,14 @@ const INELIGIBLE_RESPONSES: Record<
     message: "You already have a refund request open on this purchase.",
     status: 409,
   },
+  "earlier-refund-request": {
+    message: "This purchase has already had a refund request.",
+    status: 409,
+  },
+  "repeat-purchase": {
+    message: "A course bought again after a refund cannot be refunded.",
+    status: 403,
+  },
   "claimed-seat": {
     message: "A claimed team seat cannot be refunded.",
     status: 403,

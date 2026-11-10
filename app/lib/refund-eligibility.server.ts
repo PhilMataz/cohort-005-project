@@ -22,6 +22,8 @@ type Purchase = typeof purchases.$inferSelect;
 export type RefundIneligibility =
   | "no-purchase"
   | "open-refund-request"
+  | "earlier-refund-request"
+  | "repeat-purchase"
   | "claimed-seat"
   | "outside-refund-window"
   | "watched-too-much"
@@ -49,8 +51,20 @@ export function getRefundEligibility(
   const purchase = getLatestPurchase(userId, courseId);
   if (!purchase) return { eligible: false, reason: "no-purchase" };
 
-  if (hasOpenRefundRequest(purchase.id)) {
-    return { eligible: false, reason: "open-refund-request" };
+  // A Purchase gets at most one Refund Request, even if it was declined.
+  const earlierRequest = getRefundRequest(purchase.id);
+  if (earlierRequest) {
+    return {
+      eligible: false,
+      reason:
+        earlierRequest.status === RefundStatus.Requested
+          ? "open-refund-request"
+          : "earlier-refund-request",
+    };
+  }
+
+  if (wasRefundedBefore(userId, courseId)) {
+    return { eligible: false, reason: "repeat-purchase" };
   }
 
   if (isClaimedSeat(purchase.id)) {
@@ -95,18 +109,29 @@ function getLatestPurchase(userId: number, courseId: number) {
     .get();
 }
 
-function hasOpenRefundRequest(purchaseId: number) {
-  const open = db
+function getRefundRequest(purchaseId: number) {
+  return db
+    .select({ status: refunds.status })
+    .from(refunds)
+    .where(eq(refunds.purchaseId, purchaseId))
+    .get();
+}
+
+// Buying a course again after it was refunded does not open a second chance.
+function wasRefundedBefore(userId: number, courseId: number) {
+  const refunded = db
     .select({ id: refunds.id })
     .from(refunds)
+    .innerJoin(purchases, eq(refunds.purchaseId, purchases.id))
     .where(
       and(
-        eq(refunds.purchaseId, purchaseId),
-        eq(refunds.status, RefundStatus.Requested)
+        eq(purchases.userId, userId),
+        eq(purchases.courseId, courseId),
+        eq(refunds.status, RefundStatus.Approved)
       )
     )
     .get();
-  return open !== undefined;
+  return refunded !== undefined;
 }
 
 // A Seat that came out of a team Purchase, and has been claimed, belongs to

@@ -197,6 +197,31 @@ function openRefundRequest(purchaseId: number) {
     .run();
 }
 
+function approveRefundRequest(purchaseId: number, amountRefunded: number) {
+  testDb.current
+    .insert(refunds)
+    .values({
+      purchaseId,
+      status: RefundStatus.Approved,
+      reason: "Not what I expected at all.",
+      amountRefunded,
+      resolvedAt: NOW.toISOString(),
+    })
+    .run();
+}
+
+function declineRefundRequest(purchaseId: number) {
+  testDb.current
+    .insert(refunds)
+    .values({
+      purchaseId,
+      status: RefundStatus.Declined,
+      reason: "Not what I expected at all.",
+      resolvedAt: NOW.toISOString(),
+    })
+    .run();
+}
+
 /** Sends a Refund Request straight to the server, as the given Learner. */
 async function requestRefund(learnerId: number) {
   const setCookie = await setCurrentUserId(
@@ -351,6 +376,44 @@ describe("Refund Request, sent to the server", () => {
     });
   });
 
+  it("is rejected after an earlier Refund Request was declined", async () => {
+    const { learner, course } = seedCourse({ lessonCount: 4 });
+    const purchase = buyCourse(learner.id, course.id);
+    declineRefundRequest(purchase.id);
+
+    const response = await requestRefund(learner.id);
+
+    expect(response).toEqual({
+      status: 409,
+      message: "This purchase has already had a refund request.",
+    });
+  });
+
+  it("is rejected for a repeat Purchase of a refunded course", async () => {
+    const { learner, course } = seedCourse({ lessonCount: 4 });
+    const first = buyCourse(learner.id, course.id, { purchasedDaysAgo: 30 });
+    approveRefundRequest(first.id, first.amountPaid);
+    buyCourse(learner.id, course.id);
+
+    const response = await requestRefund(learner.id);
+
+    expect(response).toEqual({
+      status: 403,
+      message: "A course bought again after a refund cannot be refunded.",
+    });
+  });
+
+  it("is accepted for a repeat Purchase after a declined Refund Request", async () => {
+    const { learner, course } = seedCourse({ lessonCount: 4 });
+    const first = buyCourse(learner.id, course.id, { purchasedDaysAgo: 30 });
+    declineRefundRequest(first.id);
+    buyCourse(learner.id, course.id);
+
+    const response = await requestRefund(learner.id);
+
+    expect(response.status).toBe(302);
+  });
+
   it("is rejected when the Learner has no Purchase", async () => {
     const { learner } = seedCourse({ lessonCount: 4 });
 
@@ -433,6 +496,30 @@ describe("Refund Request, sent to the server", () => {
 });
 
 describe("Refund Eligibility, as shown on the course page", () => {
+  it("offers no refund after an earlier Refund Request was declined", () => {
+    const { learner, course } = seedCourse({ lessonCount: 4 });
+    const purchase = buyCourse(learner.id, course.id);
+    declineRefundRequest(purchase.id);
+
+    const eligibility = getRefundEligibility(learner.id, course.id);
+
+    expect(eligibility).toEqual({
+      eligible: false,
+      reason: "earlier-refund-request",
+    });
+  });
+
+  it("offers no refund on a repeat Purchase of a refunded course", () => {
+    const { learner, course } = seedCourse({ lessonCount: 4 });
+    const first = buyCourse(learner.id, course.id, { purchasedDaysAgo: 30 });
+    approveRefundRequest(first.id, first.amountPaid);
+    buyCourse(learner.id, course.id);
+
+    const eligibility = getRefundEligibility(learner.id, course.id);
+
+    expect(eligibility).toEqual({ eligible: false, reason: "repeat-purchase" });
+  });
+
   it("offers the amount paid after the price changed", () => {
     const { learner, course } = seedCourse({ lessonCount: 4 });
     buyCourse(learner.id, course.id, { amountPaid: 7900, country: "US" });
