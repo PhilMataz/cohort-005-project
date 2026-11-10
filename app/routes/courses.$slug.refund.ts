@@ -19,11 +19,11 @@ const INELIGIBLE_RESPONSES: Record<
 > = {
   "no-purchase": { message: "You have not bought this course.", status: 403 },
   "open-refund-request": {
-    message: "You already have a request open on this purchase.",
+    message: "You already have a refund request open on this purchase.",
     status: 409,
   },
   "claimed-seat": {
-    message: "A claimed team seat cannot be cancelled.",
+    message: "A claimed team seat cannot be refunded.",
     status: 403,
   },
   "outside-refund-window": {
@@ -31,11 +31,11 @@ const INELIGIBLE_RESPONSES: Record<
     status: 403,
   },
   "watched-too-much": {
-    message: "You have watched too much of this course to cancel it.",
+    message: "You have watched too much of this course to get a refund.",
     status: 403,
   },
   "completed-too-much": {
-    message: "You have completed too much of this course to cancel it.",
+    message: "You have completed too much of this course to get a refund.",
     status: 403,
   },
 };
@@ -48,7 +48,7 @@ const refundActionSchema = z.object({
   reason: z
     .string()
     .trim()
-    .min(10, "Tell us a little more about why you want to cancel.")
+    .min(10, "Tell us a little more about why you want a refund.")
     .max(1000, "Please keep your reason under 1000 characters."),
 });
 
@@ -60,7 +60,7 @@ function getCourseBySlug(slug: string) {
  * The confirmation the learner gets in their inbox. There is no mail
  * transport wired up yet, so the built message goes to the server log.
  */
-function buildReversalEmail(input: {
+function buildRefundRequestEmail(input: {
   learnerName: string;
   learnerEmail: string;
   courseTitle: string;
@@ -68,14 +68,14 @@ function buildReversalEmail(input: {
 }) {
   return {
     to: input.learnerEmail,
-    subject: `Reversal requested — ${input.courseTitle}`,
+    subject: `We got your refund request: ${input.courseTitle}`,
     body: [
       `Hi ${input.learnerName},`,
       "",
-      `We have your Reversal request for "${input.courseTitle}".`,
-      `The Reversal is for ${formatPrice(input.amount)}, the amount you paid.`,
+      `We got your refund request for "${input.courseTitle}".`,
+      `If we approve it, your refund will be ${formatPrice(input.amount)}, the amount you paid.`,
       "",
-      "Our team reviews every Reversal by hand. You do not need to do anything else — we will email you again when it is done.",
+      "Our team reviews every refund request by hand. You do not need to do anything else — we will email you again when it is done.",
       "",
       "— The Cadence team",
     ].join("\n"),
@@ -86,7 +86,7 @@ export async function action({ params, request }: Route.ActionArgs) {
   const currentUserId = await getCurrentUserId(request);
 
   if (!currentUserId) {
-    throw data("You must be logged in to cancel a purchase.", { status: 401 });
+    throw data("You must be logged in to ask for a refund.", { status: 401 });
   }
 
   const { slug } = parseParams(params, refundParamsSchema);
@@ -132,7 +132,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     .returning()
     .get();
 
-  const email = buildReversalEmail({
+  const email = buildRefundRequestEmail({
     learnerName: learner.name,
     learnerEmail: learner.email,
     courseTitle: course.title,

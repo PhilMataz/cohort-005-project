@@ -136,7 +136,7 @@ function changeCoursePrice(courseId: number, price: number) {
     .run();
 }
 
-/** The body of the confirmation email, which goes to the server log. */
+/** The confirmation email, which goes to the server log. */
 function confirmationEmail() {
   const logged = vi
     .mocked(console.log)
@@ -265,7 +265,7 @@ describe("Refund Request, sent to the server", () => {
 
     expect(response).toEqual({
       status: 403,
-      message: "You have completed too much of this course to cancel it.",
+      message: "You have completed too much of this course to get a refund.",
     });
   });
 
@@ -321,7 +321,7 @@ describe("Refund Request, sent to the server", () => {
 
     expect(response).toEqual({
       status: 403,
-      message: "You have watched too much of this course to cancel it.",
+      message: "You have watched too much of this course to get a refund.",
     });
   });
 
@@ -334,7 +334,7 @@ describe("Refund Request, sent to the server", () => {
 
     expect(response).toEqual({
       status: 403,
-      message: "A claimed team seat cannot be cancelled.",
+      message: "A claimed team seat cannot be refunded.",
     });
   });
 
@@ -347,7 +347,7 @@ describe("Refund Request, sent to the server", () => {
 
     expect(response).toEqual({
       status: 409,
-      message: "You already have a request open on this purchase.",
+      message: "You already have a refund request open on this purchase.",
     });
   });
 
@@ -362,6 +362,33 @@ describe("Refund Request, sent to the server", () => {
     });
   });
 
+  describe("confirmation email", () => {
+    it("names the Refund Request in the subject", async () => {
+      const { learner, course } = seedCourse({ lessonCount: 4 });
+      buyCourse(learner.id, course.id);
+
+      await requestRefund(learner.id);
+
+      expect(confirmationEmail()).toContain(
+        "subject=We got your refund request: Introduction to TypeScript"
+      );
+    });
+
+    it("talks about a refund request in the body", async () => {
+      const { learner, course } = seedCourse({ lessonCount: 4 });
+      buyCourse(learner.id, course.id);
+
+      await requestRefund(learner.id);
+
+      const email = confirmationEmail();
+      expect(email).toContain(
+        'We got your refund request for "Introduction to TypeScript".'
+      );
+      expect(email).toContain("Our team reviews every refund request by hand.");
+      expect(email).not.toMatch(/reversal|chargeback|cancel/i);
+    });
+  });
+
   describe("after the course price changed", () => {
     it("refunds the amount paid when the price went up", async () => {
       const { learner, course } = seedCourse({ lessonCount: 4 });
@@ -372,7 +399,7 @@ describe("Refund Request, sent to the server", () => {
 
       expect(response.status).toBe(302);
       expect(confirmationEmail()).toContain(
-        "The Reversal is for $79.00, the amount you paid."
+        "your refund will be $79.00, the amount you paid."
       );
     });
 
@@ -385,7 +412,7 @@ describe("Refund Request, sent to the server", () => {
 
       expect(response.status).toBe(302);
       expect(confirmationEmail()).toContain(
-        "The Reversal is for $79.00, the amount you paid."
+        "your refund will be $79.00, the amount you paid."
       );
     });
 
@@ -399,7 +426,7 @@ describe("Refund Request, sent to the server", () => {
 
       expect(response.status).toBe(302);
       expect(confirmationEmail()).toContain(
-        "The Reversal is for $39.50, the amount you paid."
+        "your refund will be $39.50, the amount you paid."
       );
     });
   });
