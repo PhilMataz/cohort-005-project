@@ -25,8 +25,12 @@ A single payment that buys one course for good. There are no recurring payments.
 _Avoid_: Subscription, order
 
 **Enrollment**:
-A Learner's access to a course they have purchased.
-_Avoid_: Registration, membership
+A Learner's access to a course they have purchased. An Enrollment is active or ended; a Refund ends it, and an ended Enrollment gives no access but is still remembered.
+_Avoid_: Registration, membership, unenrollment (for ending)
+
+**Progress**:
+What a Learner has done in a course: lessons completed, time watched and quiz attempts. Progress belongs to the Learner, not the Enrollment, so it survives a Refund and is simply out of reach while they have no access.
+_Avoid_: Completion (for partial progress)
 
 **Seat**:
 One Learner's place in a course, bought as part of a team Purchase. A Seat is claimed once a Learner takes it.
@@ -35,7 +39,7 @@ _Avoid_: Coupon (for the place itself)
 ### Getting money back
 
 **Refund Request**:
-A Learner's request to get the money back for a Purchase, decided by an Admin. It is Requested, Approved or Declined; a Purchase gets at most one, and it cannot be withdrawn.
+A Learner's request to get the money back for a Purchase, decided by an Admin. It is Requested, Approved or Declined; a Purchase gets at most one, and it cannot be withdrawn, and a Declined one is final. Declining needs a reason the Learner can read. The Learner keeps access while it is Requested, and Progress made in that time still counts.
 _Avoid_: Cancellation, chargeback, reversal
 
 **Refund**:
