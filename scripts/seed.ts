@@ -2781,6 +2781,30 @@ This course is still in draft while the cluster examples are rewritten against t
       updatedAt: daysAgo(6),
     })
     .run();
+  db.insert(schema.bookmarks)
+    .values([
+      { userId: liam.id, lessonId: course1LessonIds[1], createdAt: daysAgo(7) },
+      { userId: liam.id, lessonId: course1LessonIds[3], createdAt: daysAgo(5) },
+    ])
+    .run();
+  db.insert(schema.notes)
+    .values([
+      {
+        userId: liam.id,
+        lessonId: course1LessonIds[0],
+        body: "Setup steps: install, then *configure*.\n# Not a heading — Notes are plain text.",
+        createdAt: daysAgo(8),
+        updatedAt: daysAgo(8),
+      },
+      {
+        userId: liam.id,
+        lessonId: course1LessonIds[2],
+        body: "Come back to the second example, it went past me.",
+        createdAt: daysAgo(7),
+        updatedAt: daysAgo(5),
+      },
+    ])
+    .run();
   db.insert(schema.refunds)
     .values({
       purchaseId: liamPurchase.id,
@@ -2849,6 +2873,9 @@ This course is still in draft while the cluster examples are rewritten against t
   console.log(`  Enrollments: ${countRows(schema.enrollments)}`);
   console.log(`  Course ratings: ${countRows(schema.courseRatings)}`);
   console.log(`  Lesson comments: ${countRows(schema.comments)}`);
+  console.log(
+    `  Bookmarks: ${countRows(schema.bookmarks)}, notes: ${countRows(schema.notes)}`
+  );
   console.log(
     `  Lesson progress: ${countRows(schema.lessonProgress)} (${countRows(schema.lessonProgress, eq(schema.lessonProgress.status, LessonProgressStatus.Completed))} completed)`
   );
