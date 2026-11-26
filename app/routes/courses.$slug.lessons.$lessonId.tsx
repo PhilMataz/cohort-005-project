@@ -12,6 +12,13 @@ import {
 } from "~/lib/comments.server";
 import { defaultNotifications } from "~/lib/notifications.server";
 import {
+  findNote,
+  isBookmarked,
+  saveNote,
+  toggleBookmark,
+} from "~/lib/bookmarks-and-notes.server";
+import { noteBodySchema } from "~/lib/notes";
+import {
   CommentThread,
   type RenderedComment,
 } from "~/components/comment-thread";
@@ -36,6 +43,7 @@ import {
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
+import { BookmarkToggle, LessonNote } from "~/components/bookmarks-and-notes";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -80,6 +88,10 @@ const editCommentSchema = z.object({
   intent: z.literal("edit-comment"),
   commentId: z.coerce.number().int(),
   body: z.string(),
+});
+
+const saveNoteSchema = z.object({
+  body: noteBodySchema,
 });
 
 const deleteCommentSchema = z.object({
@@ -271,6 +283,26 @@ function markLessonInProgress(userId: number, lessonId: number) {
     })
     .returning()
     .get();
+}
+
+// Throws a 404 unless the lesson exists and sits in this course, so a lesson
+// id from another course can't be reached through this route.
+function requireLessonInCourse(lessonId: number, courseId: number) {
+  const lesson = getLessonById(lessonId);
+  if (!lesson) {
+    throw data("Lesson not found", { status: 404 });
+  }
+
+  const mod = getModuleById(lesson.moduleId);
+  if (!mod) {
+    throw data("Module not found", { status: 404 });
+  }
+
+  if (mod.courseId !== courseId) {
+    throw data("Lesson not found in this course", { status: 404 });
+  }
+
+  return { lesson, mod };
 }
 
 function getLastWatchPosition(userId: number, lessonId: number) {
@@ -623,20 +655,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Course not found", { status: 404 });
   }
 
-  const lesson = getLessonById(lessonId);
-  if (!lesson) {
-    throw data("Lesson not found", { status: 404 });
-  }
-
-  const mod = getModuleById(lesson.moduleId);
-  if (!mod) {
-    throw data("Module not found", { status: 404 });
-  }
-
-  // Verify lesson belongs to this course
-  if (mod.courseId !== course.id) {
-    throw data("Lesson not found in this course", { status: 404 });
-  }
+  const { lesson, mod } = requireLessonInCourse(lessonId, course.id);
 
   const access = await getAccess(request, course.id);
   const currentUserId = access.userId;
@@ -688,6 +707,15 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const comments = canViewContent
     ? await renderThread(getLessonThread(lessonId))
     : [];
+
+  // The Student's own Bookmark and Note on this Lesson, behind the same bar as
+  // the discussion. A signed-out visitor gets neither.
+  const student =
+    currentUserId && canViewContent
+      ? { userId: currentUserId, lessonId }
+      : null;
+  const bookmarked = student ? isBookmarked(db, student) : false;
+  const note = student ? findNote(db, student) : undefined;
 
   // Render lesson content from Markdown to HTML server-side
   const contentHtml = lesson.content
@@ -783,6 +811,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     canViewContent,
     canModerate: access.isStaff,
     instructorName: instructor?.name ?? "your instructor",
+    bookmarked,
+    note: note
+      ? { body: note.body, updatedAt: note.updatedAt }
+      : null,
   };
 }
 
@@ -880,6 +912,32 @@ export async function action({ params, request }: Route.ActionArgs) {
     }
   }
 
+  // Bookmark and Note intents re-check access here for the same reason as the
+  // comment intents above, and scope the lesson to this course.
+  if (intent === "toggle-bookmark" || intent === "save-note") {
+    await requireContentAccess(request, course.id);
+    requireLessonInCourse(lessonId, course.id);
+
+    const student = { userId: currentUserId, lessonId };
+
+    if (intent === "toggle-bookmark") {
+      const nowBookmarked = toggleBookmark(db, student, new Date());
+      return { ok: true, bookmarked: nowBookmarked };
+    }
+
+    const parsed = parseFormData(formData, saveNoteSchema);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: parsed.errors.body ?? "Could not save that note.",
+      };
+    }
+
+    const saved = saveNote(db, student, parsed.data.body, new Date());
+    if (!saved.ok) return saved;
+    return { ok: true, noteSaved: true };
+  }
+
   if (intent === "mark-complete") {
     markLessonComplete(currentUserId, lessonId);
     return { success: true };
@@ -966,6 +1024,8 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     canViewContent,
     canModerate,
     instructorName,
+    bookmarked,
+    note,
   } = loaderData;
   const [autoplay, toggleAutoplay] = useAutoplay();
   const fetcher = useFetcher({ key: `mark-complete-${lesson.id}` });
@@ -1074,6 +1134,9 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
                 {formatDuration(lesson.durationMinutes, true, false, false)}
               </div>
             )}
+            {canViewContent && currentUserId && (
+              <BookmarkToggle bookmarked={bookmarked} />
+            )}
             {lesson.githubRepoUrl && (
               <a
                 href={lesson.githubRepoUrl}
@@ -1118,6 +1181,9 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
               </CardContent>
             </Card>
           )}
+
+          {/* Notes */}
+          {canViewContent && currentUserId && <LessonNote note={note} />}
 
           {/* Quiz Section */}
           {quiz && enrolled && currentUserId && (
