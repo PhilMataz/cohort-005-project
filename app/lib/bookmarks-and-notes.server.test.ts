@@ -43,6 +43,11 @@ beforeEach(() => {
   );
 });
 
+// The seeded Student on the nth Lesson.
+function mine(n: number) {
+  return { userId: base.user.id, lessonId: lessonIds[n] };
+}
+
 function addStudent(name: string) {
   return db
     .insert(schema.users)
@@ -57,32 +62,27 @@ function addStudent(name: string) {
 
 describe("toggling a Bookmark", () => {
   it("bookmarks a Lesson with no Bookmark, and removes it on the next toggle", () => {
-    expect(toggleBookmark(db, base.user.id, lessonIds[0], NOW)).toBe(true);
-    expect(isBookmarked(db, base.user.id, lessonIds[0])).toBe(true);
+    expect(toggleBookmark(db, mine(0), NOW)).toBe(true);
+    expect(isBookmarked(db, mine(0))).toBe(true);
 
-    expect(toggleBookmark(db, base.user.id, lessonIds[0], LATER)).toBe(false);
-    expect(isBookmarked(db, base.user.id, lessonIds[0])).toBe(false);
+    expect(toggleBookmark(db, mine(0), LATER)).toBe(false);
+    expect(isBookmarked(db, mine(0))).toBe(false);
   });
 
   it("never leaves two Bookmarks on the same Lesson", () => {
-    toggleBookmark(db, base.user.id, lessonIds[0], NOW);
+    toggleBookmark(db, mine(0), NOW);
 
-    expect(() =>
-      db
-        .insert(schema.bookmarks)
-        .values({ userId: base.user.id, lessonId: lessonIds[0] })
-        .run()
-    ).toThrow();
+    expect(() => db.insert(schema.bookmarks).values(mine(0)).run()).toThrow();
     expect(listBookmarks(db, base.user.id)).toHaveLength(1);
   });
 });
 
 describe("saving a Note", () => {
   it("creates a Note on a Lesson with none, trimmed", () => {
-    const result = saveNote(db, base.user.id, lessonIds[0], "  Remember #1 *this*  ", NOW);
+    const result = saveNote(db, mine(0), "  Remember #1 *this*  ", NOW);
 
     expect(result).toMatchObject({ ok: true });
-    expect(findNote(db, base.user.id, lessonIds[0])).toMatchObject({
+    expect(findNote(db, mine(0))).toMatchObject({
       body: "Remember #1 *this*",
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString(),
@@ -90,10 +90,10 @@ describe("saving a Note", () => {
   });
 
   it("replaces the body and moves last edited on when saved again", () => {
-    saveNote(db, base.user.id, lessonIds[0], "First thought", NOW);
-    saveNote(db, base.user.id, lessonIds[0], "Second thought", LATER);
+    saveNote(db, mine(0), "First thought", NOW);
+    saveNote(db, mine(0), "Second thought", LATER);
 
-    expect(findNote(db, base.user.id, lessonIds[0])).toMatchObject({
+    expect(findNote(db, mine(0))).toMatchObject({
       body: "Second thought",
       createdAt: NOW.toISOString(),
       updatedAt: LATER.toISOString(),
@@ -102,7 +102,7 @@ describe("saving a Note", () => {
   });
 
   it("never leaves two Notes on the same Lesson", () => {
-    saveNote(db, base.user.id, lessonIds[0], "Mine", NOW);
+    saveNote(db, mine(0), "Mine", NOW);
 
     expect(() =>
       db
@@ -113,17 +113,17 @@ describe("saving a Note", () => {
   });
 
   it("accepts exactly 2,000 characters and refuses 2,001", () => {
-    expect(saveNote(db, base.user.id, lessonIds[0], "a".repeat(2000), NOW)).toMatchObject({
+    expect(saveNote(db, mine(0), "a".repeat(2000), NOW)).toMatchObject({
       ok: true,
     });
 
-    const tooLong = saveNote(db, base.user.id, lessonIds[1], "a".repeat(2001), NOW);
+    const tooLong = saveNote(db, mine(1), "a".repeat(2001), NOW);
     expect(tooLong).toMatchObject({ ok: false });
-    expect(findNote(db, base.user.id, lessonIds[1])).toBeUndefined();
+    expect(findNote(db, mine(1))).toBeUndefined();
   });
 
   it("refuses an empty Note", () => {
-    expect(saveNote(db, base.user.id, lessonIds[0], "   ", NOW)).toMatchObject({
+    expect(saveNote(db, mine(0), "   ", NOW)).toMatchObject({
       ok: false,
     });
   });
@@ -132,13 +132,18 @@ describe("saving a Note", () => {
 describe("the Saved lists", () => {
   it("hold only the Student's own rows, newest first, with Lesson and Course", () => {
     const other = addStudent("Other");
-    toggleBookmark(db, base.user.id, lessonIds[0], NOW);
-    toggleBookmark(db, base.user.id, lessonIds[1], LATER);
-    toggleBookmark(db, other.id, lessonIds[2], LATEST);
+    toggleBookmark(db, mine(0), NOW);
+    toggleBookmark(db, mine(1), LATER);
+    toggleBookmark(db, { userId: other.id, lessonId: lessonIds[2] }, LATEST);
 
-    saveNote(db, base.user.id, lessonIds[1], "Older", NOW);
-    saveNote(db, base.user.id, lessonIds[0], "Newer", LATER);
-    saveNote(db, other.id, lessonIds[2], "Not yours", LATEST);
+    saveNote(db, mine(1), "Older", NOW);
+    saveNote(db, mine(0), "Newer", LATER);
+    saveNote(
+      db,
+      { userId: other.id, lessonId: lessonIds[2] },
+      "Not yours",
+      LATEST
+    );
 
     expect(listBookmarks(db, base.user.id)).toEqual([
       expect.objectContaining({
@@ -147,7 +152,10 @@ describe("the Saved lists", () => {
         courseTitle: "Test Course",
         courseSlug: "test-course",
       }),
-      expect.objectContaining({ lessonId: lessonIds[0], lessonTitle: "Lesson 1" }),
+      expect.objectContaining({
+        lessonId: lessonIds[0],
+        lessonTitle: "Lesson 1",
+      }),
     ]);
 
     expect(listNotes(db, base.user.id)).toEqual([
@@ -162,9 +170,9 @@ describe("the Saved lists", () => {
   });
 
   it("orders Notes by last edited, so a re-saved Note moves to the top", () => {
-    saveNote(db, base.user.id, lessonIds[0], "First", NOW);
-    saveNote(db, base.user.id, lessonIds[1], "Second", LATER);
-    saveNote(db, base.user.id, lessonIds[0], "First, edited", LATEST);
+    saveNote(db, mine(0), "First", NOW);
+    saveNote(db, mine(1), "Second", LATER);
+    saveNote(db, mine(0), "First, edited", LATEST);
 
     expect(listNotes(db, base.user.id).map((note) => note.body)).toEqual([
       "First, edited",
@@ -178,7 +186,11 @@ describe("approving a Refund", () => {
     const notifications = fakeNotifications();
     const admin = db
       .insert(schema.users)
-      .values({ name: "Pat Admin", email: "pat@example.com", role: UserRole.Admin })
+      .values({
+        name: "Pat Admin",
+        email: "pat@example.com",
+        role: UserRole.Admin,
+      })
       .returning()
       .get();
     const purchase = db
@@ -195,8 +207,8 @@ describe("approving a Refund", () => {
       .values({ userId: base.user.id, courseId: base.course.id })
       .run();
 
-    toggleBookmark(db, base.user.id, lessonIds[0], NOW);
-    saveNote(db, base.user.id, lessonIds[0], "Keep me", NOW);
+    toggleBookmark(db, mine(0), NOW);
+    saveNote(db, mine(0), "Keep me", NOW);
 
     const raised = await raiseRefundRequest(
       db,
@@ -217,7 +229,7 @@ describe("approving a Refund", () => {
     );
     expect(approved.ok).toBe(true);
 
-    expect(isBookmarked(db, base.user.id, lessonIds[0])).toBe(true);
-    expect(findNote(db, base.user.id, lessonIds[0])).toMatchObject({ body: "Keep me" });
+    expect(isBookmarked(db, mine(0))).toBe(true);
+    expect(findNote(db, mine(0))).toMatchObject({ body: "Keep me" });
   });
 });

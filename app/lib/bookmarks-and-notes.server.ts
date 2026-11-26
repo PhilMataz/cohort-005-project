@@ -17,11 +17,22 @@ export type Db = BetterSQLite3Database<typeof schema>;
 
 type Note = typeof notes.$inferSelect;
 
-export function isBookmarked(db: Db, userId: number, lessonId: number) {
+/**
+ * One Student on one Lesson: the pair every Bookmark and Note hangs off, and
+ * the pair the unique indexes are on.
+ */
+export type StudentLesson = { userId: number; lessonId: number };
+
+/** Matches the row a table holds for this Student on this Lesson. */
+function rowFor(table: typeof bookmarks | typeof notes, at: StudentLesson) {
+  return and(eq(table.userId, at.userId), eq(table.lessonId, at.lessonId));
+}
+
+export function isBookmarked(db: Db, at: StudentLesson) {
   return !!db
     .select({ id: bookmarks.id })
     .from(bookmarks)
-    .where(and(eq(bookmarks.userId, userId), eq(bookmarks.lessonId, lessonId)))
+    .where(rowFor(bookmarks, at))
     .get();
 }
 
@@ -30,35 +41,27 @@ export function isBookmarked(db: Db, userId: number, lessonId: number) {
  * Returns whether the Lesson is now bookmarked. The unique index on
  * (user, lesson) means a racing second toggle can never add a duplicate.
  */
-export function toggleBookmark(
-  db: Db,
-  userId: number,
-  lessonId: number,
-  now: Date
-): boolean {
+export function toggleBookmark(db: Db, at: StudentLesson, now: Date): boolean {
   const removed = db
     .delete(bookmarks)
-    .where(and(eq(bookmarks.userId, userId), eq(bookmarks.lessonId, lessonId)))
+    .where(rowFor(bookmarks, at))
     .returning({ id: bookmarks.id })
     .all();
   if (removed.length > 0) return false;
 
   db.insert(bookmarks)
-    .values({ userId, lessonId, createdAt: now.toISOString() })
+    .values({ ...at, createdAt: now.toISOString() })
     .onConflictDoNothing()
     .run();
   return true;
 }
 
-export function findNote(db: Db, userId: number, lessonId: number) {
-  return db
-    .select()
-    .from(notes)
-    .where(and(eq(notes.userId, userId), eq(notes.lessonId, lessonId)))
-    .get();
+export function findNote(db: Db, at: StudentLesson) {
+  return db.select().from(notes).where(rowFor(notes, at)).get();
 }
 
-export type SaveNoteResult = { ok: true; note: Note } | { ok: false; error: string };
+export type SaveNoteResult =
+  { ok: true; note: Note } | { ok: false; error: string };
 
 /**
  * Creates the Student's Note on the Lesson, or replaces its body if there is
@@ -67,23 +70,30 @@ export type SaveNoteResult = { ok: true; note: Note } | { ok: false; error: stri
  */
 export function saveNote(
   db: Db,
-  userId: number,
-  lessonId: number,
+  at: StudentLesson,
   body: string,
   now: Date
 ): SaveNoteResult {
   const parsed = noteBodySchema.safeParse(body);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid note" };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid note",
+    };
   }
 
-  const at = now.toISOString();
+  const savedAt = now.toISOString();
   const note = db
     .insert(notes)
-    .values({ userId, lessonId, body: parsed.data, createdAt: at, updatedAt: at })
+    .values({
+      ...at,
+      body: parsed.data,
+      createdAt: savedAt,
+      updatedAt: savedAt,
+    })
     .onConflictDoUpdate({
       target: [notes.userId, notes.lessonId],
-      set: { body: parsed.data, updatedAt: at },
+      set: { body: parsed.data, updatedAt: savedAt },
     })
     .returning()
     .get();
