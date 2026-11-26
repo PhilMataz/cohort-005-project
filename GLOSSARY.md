@@ -117,7 +117,8 @@ _Avoid_: Inbox, Activity feed
 
 **Bookmark**:
 A Student's flag on a Lesson, so they can find it again. One per Student per
-Lesson, and the Student is the only one who sees it.
+Lesson, and the Student is the only one who sees it. The Saved page lists a
+Student's Bookmarks and Notes; "Saved" names that page, not a Bookmark.
 _Avoid_: Favourite, star, saved item
 
 **Note**:
